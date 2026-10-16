@@ -1,0 +1,420 @@
+schema: app-spec/v1
+app:
+  id: fact_drift
+  name: Fact Drift Sentinel
+  kind: drupal-module
+  version: 0.1.0
+  status: spec
+  license: GPL-2.0-or-later
+  repository: https://github.com/SteveBenner/fact_drift
+  visibility: private until the MVP is complete with CI green, then public (decided 2026-10-16)
+  owner: Stephen "Sven" Benner
+  authorship: >
+    Sven designs and verifies; coding agents write code to this spec. The README and any CV line say
+    "designed and directed; verified by hand", never "wrote", for agent-written code.
+
+problem: >
+  Organisations that run several Drupal sites repeat the same facts across many pages: clinic phone
+  numbers, opening hours, addresses, provider names. When the canonical source changes (a directory,
+  a scheduling system, a spreadsheet), the copies on published pages drift out of date and nothing
+  notices until a patient calls a dead number. A health system that runs several sites from one shared
+  Drupal codebase meets cross-site drift as an everyday risk. A search of
+  drupal.org on 2026-09-18 found no contributed module that checks published facts against a canonical
+  source.
+
+users:
+  - role: content editor
+    needs: see which of their pages show a stale fact, with the evidence, and fix them
+  - role: site administrator
+    needs: configure where the true facts come from, what to scan and how often, and turn the AI extractor off at once
+  - role: developer
+    needs: add a new fact source or claim type without touching the scanner
+
+compatibility:
+  core_version_requirement: "^10.3 || ^11"
+  php: ">=8.1 on Drupal 10.3, >=8.3 on Drupal 11"
+  drush: "^12 || ^13"
+  rule: >
+    Use only APIs present in Drupal 10.3. Where Drupal 11.1 adds a better form (object-oriented hooks),
+    use it and keep the 10.3 path working through the bridge the API provides (#[LegacyHook]).
+
+glossary:
+  fact: one true value from the canonical source, for example the Riverside clinic's phone number
+  claim: one value found in published content, for example a phone number in a page body
+  finding: a stored mismatch between a claim and the fact it refers to
+  source: a configured place the facts come from, read by a FactSource plugin
+  extractor: a plugin that finds claims of one type in text
+  scan: extracting claims from one node and comparing them with the facts
+
+behaviour:
+  pipeline:
+    - load facts from every enabled source; cache them under the cache tag fact_drift_facts
+    - for each published node of a configured content type, read every configured text field in the default language
+    - run every enabled extractor over the field's text with markup stripped, producing claims
+    - attribute each claim to a fact (matching rules below)
+    - compare the normalised claim value with the normalised fact value
+    - open a finding for each mismatch; close the node's open findings that no longer mismatch
+  matching:
+    named_fact: >
+      A fact has a name and aliases (the clinic's name). When a fact's name or an alias occurs in the
+      text, the first claim of the fact's type within 200 characters after it is that fact's claim.
+    retired_value: >
+      A fact may list former values. Any occurrence of a former value anywhere in scanned text is a
+      claim of that fact, whether or not the name appears, and always mismatches.
+    unmatched: a claim that matches no fact is ignored; the module never guesses
+  normalisation:
+    phone: digits only; a leading 1 on an 11-digit North American number is dropped; extensions are kept after an x
+    hours: >
+      day ranges and times are parsed into a canonical form ("Mon-Fri 08:00-17:00; Sat 09:00-12:00").
+      Text the parser cannot read produces no claim, so an unreadable format never raises a false finding.
+  finding_lifecycle:
+    open: created when a mismatch is first seen; the same node, field, fact and found value never opens twice
+    closed: set by a later scan in which that mismatch is gone, or when the node is deleted
+    dismissed: set by a person with the manage permission, with a reason; a dismissed finding is not reopened for the same found value
+  corrections:
+    milestone: stretch
+    rule: >
+      With Content Moderation enabled for the content type, a manager can draft a correction: a new
+      draft revision of the node with the found value replaced by the expected value, a revision log
+      message naming the finding, and moderation state draft. The module never publishes.
+
+architecture:
+  file_layout:
+    fact_drift.info.yml: module identity and compatibility
+    composer.json: package stevebenner/fact_drift, type drupal-module, license GPL-2.0-or-later
+    fact_drift.module: procedural hook bridges for Drupal 10.3
+    fact_drift.services.yml: services and their dependencies
+    fact_drift.routing.yml: routes
+    fact_drift.permissions.yml: permissions
+    fact_drift.links.menu.yml: admin menu links
+    config/install/fact_drift.settings.yml: default settings
+    config/schema/fact_drift.schema.yml: types for settings and the source config entity
+    src/Entity/Finding.php: the finding content entity
+    src/Entity/Source.php: the source config entity
+    src/Entity/FindingAccessControlHandler.php: who may view and change findings
+    src/SourceListBuilder.php: the sources admin list
+    src/Form/SourceForm.php: add and edit a source
+    src/Form/SettingsForm.php: the settings screen
+    src/Attribute/FactSource.php: the FactSource plugin attribute
+    src/Attribute/ClaimExtractor.php: the ClaimExtractor plugin attribute
+    src/FactSource/FactSourceInterface.php: what a source plugin must do
+    src/FactSource/FactSourceManager.php: discovers source plugins
+    src/ClaimExtractor/ClaimExtractorInterface.php: what an extractor plugin must do
+    src/ClaimExtractor/ClaimExtractorManager.php: discovers extractor plugins
+    src/Plugin/FactSource/CsvSource.php: reads facts from a CSV file
+    src/Plugin/FactSource/RestSource.php: reads facts from a JSON endpoint (stretch)
+    src/Plugin/ClaimExtractor/PhoneExtractor.php: finds phone numbers
+    src/Plugin/ClaimExtractor/HoursExtractor.php: finds opening hours
+    src/Plugin/ClaimExtractor/LlmExtractor.php: finds fuzzy claims through the ai module (stretch)
+    src/Value/Fact.php: immutable fact value object
+    src/Value/Claim.php: immutable claim value object
+    src/Scanner.php: runs the pipeline for one node
+    src/Comparator.php: normalises and compares
+    src/FindingRecorder.php: opens, closes and de-duplicates findings
+    src/Hook/FactDriftHooks.php: object-oriented hooks (Drupal 11.1 and later)
+    src/EventSubscriber/SourceConfigSubscriber.php: reacts when a source's config is saved
+    src/Plugin/QueueWorker/RescanWorker.php: background rescans
+    src/Controller/ReportController.php: the admin report
+    src/Controller/FindingActionController.php: dismiss a finding
+    templates/fact-drift-report.html.twig: the report's summary and table
+    src/Drush/Commands/FactDriftCommands.php: drush commands
+    tests/src/Unit: unit tests
+    tests/src/Kernel: kernel tests
+    tests/src/Functional: browser tests
+    tests/fixtures/clinics.csv: sample facts
+    .github/workflows/ci.yml: CI
+    .ddev/: local development
+  services:
+    fact_drift.source_manager:
+      class: Drupal\fact_drift\FactSource\FactSourceManager
+      parent: default_plugin_manager
+    fact_drift.extractor_manager:
+      class: Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager
+      parent: default_plugin_manager
+    fact_drift.comparator:
+      class: Drupal\fact_drift\Comparator
+    fact_drift.finding_recorder:
+      class: Drupal\fact_drift\FindingRecorder
+      arguments: ["@entity_type.manager", "@datetime.time"]
+    fact_drift.scanner:
+      class: Drupal\fact_drift\Scanner
+      arguments: ["@entity_type.manager", "@fact_drift.source_manager", "@fact_drift.extractor_manager", "@fact_drift.comparator", "@fact_drift.finding_recorder", "@config.factory", "@cache.default", "@logger.channel.fact_drift"]
+    logger.channel.fact_drift:
+      parent: logger.channel_base
+      arguments: [fact_drift]
+    fact_drift.source_config_subscriber:
+      class: Drupal\fact_drift\EventSubscriber\SourceConfigSubscriber
+      arguments: ["@cache_tags.invalidator", "@queue"]
+      tags: [{ name: event_subscriber }]
+    rule: "dependencies arrive through constructors or create(); no \\Drupal:: static calls in classes"
+  entities:
+    fact_drift_finding:
+      type: content entity, no bundles, not revisionable, not translatable
+      definition: "PHP attribute #[ContentEntityType] on src/Entity/Finding.php"
+      base_table: fact_drift_finding
+      admin_permission: administer fact drift
+      handlers:
+        access: Drupal\fact_drift\Entity\FindingAccessControlHandler
+        views_data: Drupal\views\EntityViewsData
+      base_fields:
+        id: integer, serial
+        uuid: uuid
+        node: entity_reference to node, required
+        field_name: string, the field the claim was found in
+        claim_type: string, phone or hours (or a stretch type)
+        fact_key: string, the fact's key within its source
+        source: entity_reference to fact_drift_source
+        expected: string, the normalised fact value
+        found: string, the normalised claim value
+        snippet: string_long, up to 300 characters of surrounding plain text
+        state: list_string, open, closed or dismissed; named state because status means published in Drupal
+        dismiss_reason: string_long
+        created: created
+        changed: changed
+        closed: timestamp
+      access:
+        view: view fact drift findings
+        update: manage fact drift findings
+        delete: administer fact drift
+    fact_drift_source:
+      type: config entity
+      definition: "PHP attribute #[ConfigEntityType] on src/Entity/Source.php"
+      config_prefix: source
+      config_name: fact_drift.source.<id>
+      admin_permission: administer fact drift
+      handlers:
+        list_builder: Drupal\fact_drift\SourceListBuilder
+        form: { add: Drupal\fact_drift\Form\SourceForm, edit: Drupal\fact_drift\Form\SourceForm, delete: Drupal\Core\Entity\EntityDeleteForm }
+        route_provider: { html: Drupal\Core\Entity\Routing\AdminHtmlRouteProvider }
+      links:
+        collection: /admin/config/content/fact-drift/sources
+        add-form: /admin/config/content/fact-drift/sources/add
+        edit-form: /admin/config/content/fact-drift/sources/{fact_drift_source}
+        delete-form: /admin/config/content/fact-drift/sources/{fact_drift_source}/delete
+      properties:
+        id: machine name
+        label: string
+        plugin: FactSource plugin id
+        plugin_settings: mapping defined by the plugin (csv path; rest url and timeout)
+        claim_types: sequence of claim types this source provides
+        enabled: boolean
+  configuration:
+    fact_drift.settings:
+      content_types: { type: sequence of bundle ids, default: [page, article] }
+      field_types: { type: sequence, default: [text_with_summary, text_long, string_long] }
+      extractors: { type: sequence of extractor plugin ids, default: [phone, hours] }
+      full_scan_interval: { type: integer seconds, default: 86400 }
+      nodes_per_cron: { type: integer, default: 200 }
+      llm:
+        enabled: { type: boolean, default: false }
+        provider: { type: string, default: "" }
+        model: { type: string, default: "" }
+        max_calls_per_run: { type: integer, default: 20 }
+        min_interval_ms: { type: integer, default: 1000 }
+        timeout_seconds: { type: integer, default: 10 }
+        max_retries: { type: integer, default: 2 }
+      kill_switch: { type: boolean, default: false, meaning: "forces deterministic extraction only; overridable per environment in settings.php" }
+    schema_rule: every key has a type in config/schema/fact_drift.schema.yml; kernel tests run with strict schema checking
+    secrets_rule: provider API keys live in the Key module or settings.php or the environment, never in exported config
+    settings_form: "ConfigFormBase at /admin/config/content/fact-drift, fields wired with #config_target"
+  plugins:
+    FactSource:
+      attribute: Drupal\fact_drift\Attribute\FactSource (id, label, description)
+      discovery: src/Plugin/FactSource, attribute discovery, alter hook fact_drift_source_info, cache key fact_drift_source_plugins
+      interface: facts(array $settings) returns iterable of Fact; settingsForm and validation for its plugin_settings
+      implementations:
+        csv: { milestone: mvp, columns: [key, name, aliases, phone, former_phones, hours], aliases_and_former_split_on: "|" }
+        rest: { milestone: stretch, settings: [url, timeout_seconds], guardrails: same as the LLM call rules below }
+    ClaimExtractor:
+      attribute: Drupal\fact_drift\Attribute\ClaimExtractor (id, label, claim_type, weight)
+      discovery: src/Plugin/ClaimExtractor, attribute discovery, alter hook fact_drift_extractor_info
+      interface: extract(string $text) returns Claim[] with offsets and snippets
+      implementations:
+        phone: { milestone: mvp }
+        hours: { milestone: mvp }
+        llm: { milestone: stretch, through: ai module provider abstraction }
+  hooks_and_events:
+    node_insert_and_update: when a published node of a configured type is saved, queue one rescan item for it; the editor's request does no scanning
+    node_delete: close every open finding for the node with the reason node deleted
+    cron: when the last full scan is older than full_scan_interval, queue rescan items for up to nodes_per_cron published nodes, continuing from a stored cursor in State
+    theme: register fact_drift_report for templates/fact-drift-report.html.twig
+    help: a help page for the module
+    implementation_rule: >
+      Hooks are methods on src/Hook/FactDriftHooks.php marked #[Hook('...')]. For Drupal 10.3, each also
+      has a function in fact_drift.module marked #[LegacyHook] that calls the same service method, so the
+      hook runs once on every supported version.
+    config_save_event: SourceConfigSubscriber listens to ConfigEvents::SAVE and ConfigEvents::DELETE for fact_drift.source.* and invalidates the fact_drift_facts cache tag
+  queue:
+    name: fact_drift_rescan
+    worker: 'RescanWorker, #[QueueWorker(id: "fact_drift_rescan", title: new TranslatableMarkup("Fact drift rescan"), cron: ["time" => 30])]'
+    item: { nid: int }
+    errors:
+      provider_rate_limited: throw DelayedRequeueException with the provider's retry delay, so this item waits and the rest continue
+      provider_down: throw SuspendQueueException, so this cron run stops processing the queue
+      node_gone: return quietly; the delete hook already closed its findings
+  routes:
+    fact_drift.report:
+      path: /admin/reports/fact-drift
+      controller: ReportController::report
+      permission: view fact drift findings
+    fact_drift.finding_dismiss:
+      path: /admin/reports/fact-drift/{fact_drift_finding}/dismiss
+      controller: FindingActionController::dismiss
+      requirements: [_entity_access fact_drift_finding.update, _csrf_token TRUE]
+      method: GET link with a CSRF token from the report
+    fact_drift.settings:
+      path: /admin/config/content/fact-drift
+      form: SettingsForm
+      permission: administer fact drift
+    sources: generated from the source entity's links by AdminHtmlRouteProvider
+  permissions:
+    view fact drift findings: { title: View fact drift findings }
+    manage fact drift findings: { title: Dismiss findings and draft corrections }
+    administer fact drift: { title: Administer Fact Drift Sentinel, restrict access: true }
+  report:
+    content: >
+      A summary (open findings by claim type and by source), then a table of findings: page (link),
+      field, claim type, expected, found, snippet, first seen, and a dismiss link for managers. Filter by
+      ?state=open|closed|dismissed (default open) and ?type=. Paged at 50.
+    rendering: >
+      The controller returns a render array using #theme fact_drift_report; the table is a #type table with
+      a #type pager. Snippets are rendered with #plain_text, never #markup.
+    cache:
+      tags: [fact_drift_finding_list, the node:<nid> tag of every linked node, config:fact_drift.settings]
+      contexts: [user.permissions, url.query_args:state, url.query_args:type, url.query_args.pagers:0]
+      max_age: permanent
+  drush:
+    fact-drift:scan: { options: [--source=ID, --node=NID, --limit=N], does: "scans synchronously and prints counts of claims, opened findings and closed findings" }
+    fact-drift:report: { options: [--state=open, --format=table|json|csv], does: lists findings through Drush output formatters (RowsOfFields) }
+    fact-drift:sources: { does: "lists sources with their plugin, fact count and last load" }
+    definition: 'PHP attributes (#[CLI\Command], #[CLI\Option]) on src/Drush/Commands/FactDriftCommands.php with a create() factory'
+  llm_extractor:
+    milestone: stretch
+    provider: the ai module (drupal/ai) provider abstraction; any configured provider, including a local one
+    output: JSON validated against a fixed schema before use; invalid output produces no claim
+    api_safety:
+      kill_switch: fact_drift.settings:kill_switch and llm.enabled; either one off means no call is made
+      limiter: at most max_calls_per_run calls per scan run and at least min_interval_ms between calls
+      timeouts: timeout_seconds on every call
+      retries: at most max_retries, exponential backoff from 1 s with full jitter, only on timeouts and 5xx
+      rate_limits: a 429 becomes DelayedRequeueException with the provider's retry-after
+      unconfigured: no provider configured means no call
+    data_governance: >
+      Only published, public content is ever sent. Unpublished content, user data and anything that could
+      be protected health information are never sent. A local model can be configured so nothing leaves the host.
+
+security:
+  - every route has a permission or an entity access requirement
+  - state-changing links carry a CSRF token (_csrf_token)
+  - "content-derived text is escaped (#plain_text, Twig autoescape); no #markup with content"
+  - background entity queries call accessCheck(FALSE) explicitly and filter status = 1, so only published content is scanned
+  - no raw SQL; if one becomes necessary it uses placeholders
+  - provider credentials never enter exported config
+
+performance:
+  - editors' saves only enqueue work; scanning happens in the queue
+  - facts load once per run and are cached under fact_drift_facts until a source changes
+  - the report is cached by tags and contexts with no time-based expiry
+
+testing:
+  unit: [PhoneExtractor, HoursExtractor and its normaliser, Comparator, matching rules]
+  kernel: ["FindingRecorder: open, close, de-duplicate and dismiss",Scanner against tests/fixtures/clinics.csv and real nodes, config schema of the default settings]
+  functional: [report returns 403 without the permission and 200 with it, dismiss refuses a missing or wrong CSRF token, settings form saves]
+  rule: every test is shown able to fail by removing the code it covers and watching it go red before it counts
+
+ci:
+  platform: GitHub Actions
+  matrix: [{ drupal: "10.3", php: "8.1" }, { drupal: "11", php: "8.3" }]
+  jobs:
+    phpcs: Drupal and DrupalPractice standards (drupal/coder)
+    phpstan: level 6 with mglaman/phpstan-drupal and the deprecation rules
+    phpunit: unit, kernel and functional suites
+  gate: main stays green; nothing merges red
+
+local_development:
+  tool: DDEV with the ddev/ddev-drupal-contrib add-on, which builds a Drupal site around this module-only repository
+  commands: [ddev start, ddev poser, ddev symlink-project, ddev drush site:install, ddev phpunit, ddev phpcs, ddev phpstan]
+
+documentation:
+  code_comments: >
+    This repository follows Drupal's coding standards, including docblocks on classes and methods, as an
+    explicit exception to the owner's general no-comments rule (decided 2026-10-16). Docblocks describe
+    contracts; they never narrate the code.
+  readme: what it does, install, configure a source, run a scan, the demo
+
+milestones:
+  mvp:
+    - module skeleton, compatibility and composer.json
+    - services, value objects, comparator
+    - Finding and Source entities with access handling
+    - settings, schema and the settings form
+    - the FactSource and ClaimExtractor plugin types with csv, phone and hours
+    - hooks and the event subscriber
+    - the queue worker and cron
+    - the report with its template, caching and dismiss action
+    - drush scan, report and sources
+    - unit, kernel and functional tests; CI green on both matrix rows
+    - repository made public
+  stretch: [rest source, llm extractor, correction drafts through Content Moderation, Views integration for findings, a weekly email digest]
+
+demo:
+  length: five minutes
+  steps:
+    - a DDEV site with three pages repeating one clinic's phone number and hours
+    - change the number in tests/fixtures/clinics.csv
+    - ddev drush fact-drift:scan
+    - open /admin/reports/fact-drift and show the evidence (page, snippet, expected, found)
+    - dismiss one finding and show the CSRF-protected link
+    - show the tests and CI, and how one test is proven able to fail
+
+teaching_stages:
+  purpose: >
+    The order in which the owner learns Drupal through this module. Each stage takes one part of the
+    module, matches it to the Drupal mechanism behind it, shows a small code example, then quizzes.
+  stages:
+    - n: 1
+      module_part: the module's identity and layout
+      drupal: extensions, info.yml, core_version_requirement and composer packaging, set against a WordPress plugin header
+    - n: 2
+      module_part: the scanner and its helpers
+      drupal: the service container, services.yml, constructor injection and create()
+    - n: 3
+      module_part: findings and sources
+      drupal: the Entity API, content versus config entities, base fields and entity type attributes
+    - n: 4
+      module_part: settings and the kill switch
+      drupal: "the Config API, schema, ConfigFormBase with #config_target, settings.php overrides and config export"
+    - n: 5
+      module_part: where facts come from and how claims are found
+      drupal: the Plugin API, custom plugin types, attribute discovery and plugin managers
+    - n: 6
+      module_part: reacting to edits
+      drupal: hooks, object-oriented hooks with LegacyHook, and event subscribers
+    - n: 7
+      module_part: scanning in the background
+      drupal: the Queue API, cron, QueueWorker, SuspendQueueException and DelayedRequeueException
+    - n: 8
+      module_part: the report page
+      drupal: routing, permissions, controllers, render arrays, hook_theme and Twig
+    - n: 9
+      module_part: keeping the report fast and correct
+      drupal: cache tags, contexts and max-age, the page caches, BigPipe, Varnish and Cloudflare
+    - n: 10
+      module_part: dismissing findings and the settings form
+      drupal: the Form API and security, CSRF route tokens, access checks, XSS and accessCheck on entity queries
+    - n: 11
+      module_part: the command line and local development
+      drupal: Drush commands with attributes, output formatters, DDEV and drupal-contrib
+    - n: 12
+      module_part: the AI extractor and proving it works
+      drupal: the ai module's providers, API safety, PHPUnit unit, kernel and functional tests, PHPStan, Coder and CI
+
+changes_from_the_2026_09_18_stub:
+  - no fact content entity; facts are value objects read from the source each run and cached, because storing them duplicated the source and taught nothing the config entity does not
+  - the finding's lifecycle field is state, not status, because status means published across Drupal
+  - a second plugin type, ClaimExtractor, so new claim types never touch the scanner
+  - GitHub Actions instead of GitLab CI, because the repository lives on GitHub; drupal.org's GitLab template applies only if it is ever published there
+
+open_decisions:
+  - whether and when to publish on drupal.org (outward-facing; the owner decides)
+  - which AI provider the stretch extractor is demonstrated with
