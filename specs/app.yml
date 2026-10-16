@@ -33,6 +33,12 @@ users:
 compatibility:
   core_version_requirement: "^10.3 || ^11"
   php: ">=8.1 on Drupal 10.3, >=8.3 on Drupal 11"
+  module_dependencies: [drupal:node, drupal:options]
+  entity_type_definitions: >
+    PHP attributes for entity types (#[ContentEntityType], #[ConfigEntityType]) exist only from Drupal 11.1,
+    so both entity types are defined with docblock annotations (@ContentEntityType, @ConfigEntityType),
+    which 10.3 and every 11.x read. Move them to attributes when the floor rises to ^11.1.
+    Plugin attributes (#[QueueWorker], custom plugin attributes) exist in 10.3 and are used.
   drush: "^12 || ^13"
   rule: >
     Use only APIs present in Drupal 10.3. Where Drupal 11.1 adds a better form (object-oriented hooks),
@@ -150,7 +156,7 @@ architecture:
   entities:
     fact_drift_finding:
       type: content entity, no bundles, not revisionable, not translatable
-      definition: "PHP attribute #[ContentEntityType] on src/Entity/Finding.php"
+      definition: "@ContentEntityType annotation on src/Entity/Finding.php (see compatibility.entity_type_definitions)"
       base_table: fact_drift_finding
       admin_permission: administer fact drift
       handlers:
@@ -167,7 +173,7 @@ architecture:
         expected: string, the normalised fact value
         found: string, the normalised claim value
         snippet: string_long, up to 300 characters of surrounding plain text
-        state: list_string, open, closed or dismissed; named state because status means published in Drupal
+        state: list_string (a field type from the options module, hence the dependency), open, closed or dismissed; named state because status means published on content entities
         dismiss_reason: string_long
         created: created
         changed: changed
@@ -178,7 +184,7 @@ architecture:
         delete: administer fact drift
     fact_drift_source:
       type: config entity
-      definition: "PHP attribute #[ConfigEntityType] on src/Entity/Source.php"
+      definition: "@ConfigEntityType annotation on src/Entity/Source.php (see compatibility.entity_type_definitions)"
       config_prefix: source
       config_name: fact_drift.source.<id>
       admin_permission: administer fact drift
@@ -197,7 +203,7 @@ architecture:
         plugin: FactSource plugin id
         plugin_settings: mapping defined by the plugin (csv path; rest url and timeout)
         claim_types: sequence of claim types this source provides
-        enabled: boolean
+        status: boolean, ConfigEntityBase's built-in enabled flag (status(), enable(), disable()); on config entities status means enabled
   configuration:
     fact_drift.settings:
       content_types: { type: sequence of bundle ids, default: [page, article] }
@@ -380,7 +386,7 @@ teaching_stages:
       drupal: the service container, services.yml, constructor injection and create()
     - n: 3
       module_part: findings and sources
-      drupal: the Entity API, content versus config entities, base fields and entity type attributes
+      drupal: the Entity API, content versus config entities, base fields, and entity type annotations (attributes from 11.1)
     - n: 4
       module_part: settings and the kill switch
       drupal: "the Config API, schema, ConfigFormBase with #config_target, settings.php overrides and config export"
