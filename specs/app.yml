@@ -330,8 +330,18 @@ architecture:
         Wrapped in a scroll region (overflow-x auto, tabindex 0, role region, aria-labelledby the caption) so the
         table scrolls and the page never does. Cells are top-aligned. The page title clamps to 2 lines. The
         snippet clamps to 3 lines and its full text is behind a details disclosure. First seen never wraps. The
-        Field cell shows the field's label from its definition and may break anywhere. The caption uses the
-        state's label.
+        Field cell shows the field's label from its definition; a field the bundle no longer has shows
+        "(removed field)" with its machine name as secondary text breaking only at underscores. The caption
+        uses the state's label. The Operations column is sticky at the inline end, so Dismiss stays in view
+        while the table scrolls, and Drupal's column toggle is sticky at the inline start. Column minimum widths
+        are small enough that the table fits beside Claro's collapsed sidebar at 1024px; header and date cells
+        may wrap to two lines.
+      snippet_disclosure: >
+        Every snippet the 3-line clamp can cut has a compact disclosure (a summary of one text line, at least
+        24px tall, named "Full snippet for finding <id>"); opening it replaces the clamped preview rather than
+        repeating it.
+      summary_rows: summary table cells drop the admin theme's minimum row height and keep a quarter-em block padding, at every width
+      scoping: every rule targets the module's own classes (the filter nav, the summary, the scroll region), never bare elements, so core components such as the pager keep their theme layout
       empty_text: >
         With a type filter, or on a page past the last, the empty text names the filter ("No open findings of
         claim type Phone.") and offers a link back to the first page of the unfiltered state. "Every scanned
