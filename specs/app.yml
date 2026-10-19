@@ -332,14 +332,16 @@ architecture:
         snippet clamps to 3 lines and its full text is behind a details disclosure. First seen never wraps. The
         Field cell shows the field's label from its definition; a field the bundle no longer has shows
         "(removed field)" with its machine name as secondary text breaking only at underscores. The caption
-        uses the state's label. The Operations column is sticky at the inline end, so Dismiss stays in view
-        while the table scrolls, and Drupal's column toggle is sticky at the inline start. Column minimum widths
-        are small enough that the table fits beside Claro's collapsed sidebar at 1024px; header and date cells
-        may wrap to two lines.
+        uses the state's label. The table fits its region by hiding priority columns against the region's own
+        width (a container query: low priority below 920px, medium below 720px), not the viewport's, and "Show
+        all columns" still restores them, after which the region scrolls. The Operations column is sticky at
+        the inline end, so Dismiss stays in view while the table scrolls, and is left out entirely when no row
+        on the page has an operation (closed, dismissed, or a viewer without update access). Drupal's column
+        toggle is sticky at the inline start. Header and date cells may wrap to two lines.
       snippet_disclosure: >
         Every snippet the 3-line clamp can cut has a compact disclosure (a summary of one text line, at least
-        24px tall, named "Full snippet for finding <id>"); opening it replaces the clamped preview rather than
-        repeating it.
+        24px tall, its visible label "Full text" completed by visually hidden text to "Full text of the snippet
+        for finding <id>"); opening it replaces the clamped preview rather than repeating it.
       summary_rows: summary table cells drop the admin theme's minimum row height and keep a quarter-em block padding, at every width
       scoping: every rule targets the module's own classes (the filter nav, the summary, the scroll region), never bare elements, so core components such as the pager keep their theme layout
       empty_text: >
