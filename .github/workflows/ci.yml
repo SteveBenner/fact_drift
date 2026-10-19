@@ -33,7 +33,9 @@ jobs:
           composer config repositories.fact_drift path ../fact_drift
           composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
           composer config --no-plugins allow-plugins.phpstan/extension-installer true
-          composer require stevebenner/fact_drift:@dev drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+          composer remove drupal/core-recommended --no-update --no-interaction
+          rm -f composer.lock
+          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
       - name: Check the coding standard
         run: drupal/vendor/bin/phpcs --standard=fact_drift/phpcs.xml.dist fact_drift
 
@@ -64,10 +66,12 @@ jobs:
           composer config repositories.fact_drift path ../fact_drift
           composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
           composer config --no-plugins allow-plugins.phpstan/extension-installer true
-          composer require stevebenner/fact_drift:@dev drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+          composer remove drupal/core-recommended --no-update --no-interaction
+          rm -f composer.lock
+          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
       - name: Analyse the module
         working-directory: drupal/web/modules/contrib/fact_drift
-        run: ../../../../vendor/bin/phpstan analyse -c phpstan.neon --no-progress
+        run: $GITHUB_WORKSPACE/drupal/vendor/bin/phpstan analyse -c phpstan.neon --no-progress
 
   phpunit:
     name: phpunit (Drupal ${{ matrix.drupal }}, PHP ${{ matrix.php }})
@@ -81,9 +85,9 @@ jobs:
           - drupal: '^11'
             php: '8.3'
     env:
-      SIMPLETEST_DB: sqlite://localhost/sites/default/files/.ht.sqlite
+      SIMPLETEST_DB: sqlite://localhost/${{ github.workspace }}/drupal/web/sites/default/files/.ht.sqlite
       SIMPLETEST_BASE_URL: http://127.0.0.1:8080
-      BROWSERTEST_OUTPUT_DIRECTORY: web/sites/simpletest/browser_output
+      BROWSERTEST_OUTPUT_DIRECTORY: ${{ github.workspace }}/drupal/web/sites/simpletest/browser_output
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,7 +104,9 @@ jobs:
           composer config repositories.fact_drift path ../fact_drift
           composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
           composer config --no-plugins allow-plugins.phpstan/extension-installer true
-          composer require stevebenner/fact_drift:@dev drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+          composer remove drupal/core-recommended --no-update --no-interaction
+          rm -f composer.lock
+          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
       - name: Prepare the test directories
         working-directory: drupal
         run: |
@@ -115,5 +121,8 @@ jobs:
             sleep 1
           done
       - name: Run the unit, kernel and functional suites
-        working-directory: drupal
-        run: vendor/bin/phpunit -c web/core web/modules/contrib/fact_drift
+        working-directory: drupal/web
+        run: ../vendor/bin/phpunit -c core modules/contrib/fact_drift
+      - name: Show the web server log
+        if: failure()
+        run: tail -n 100 "$RUNNER_TEMP/server.log"
