@@ -250,7 +250,7 @@ architecture:
     FactSource:
       attribute: Drupal\fact_drift\Attribute\FactSource (id, label, description)
       discovery: src/Plugin/FactSource, attribute discovery, alter hook fact_drift_source_info, cache key fact_drift_source_plugins
-      interface: facts(array $settings) returns iterable of Fact; settingsForm and validation for its plugin_settings
+      interface: facts(array $settings) returns iterable of Fact; fingerprint(array $settings) returns a string that changes when the content behind the settings changes (csv returns the file's mtime and size), and is part of the facts cache id; settingsForm and validation for its plugin_settings
       implementations:
         csv: { milestone: mvp, columns: [key, name, aliases, phone, former_phones, hours], aliases_and_former_split_on: "|" }
         rest: { milestone: stretch, settings: [url, timeout_seconds], guardrails: same as the LLM call rules below }
