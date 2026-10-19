@@ -102,6 +102,7 @@ architecture:
     fact_drift.routing.yml: routes
     fact_drift.permissions.yml: permissions
     fact_drift.links.menu.yml: admin menu links
+    fact_drift.links.action.yml: the Add source action on the sources list
     config/install/fact_drift.settings.yml: default settings
     config/schema/fact_drift.schema.yml: types for settings and the source config entity
     src/Entity/Finding.php: the finding content entity
@@ -123,6 +124,7 @@ architecture:
     src/Plugin/ClaimExtractor/LlmExtractor.php: finds fuzzy claims through the ai module (stretch)
     src/Value/Fact.php: immutable fact value object
     src/Value/Claim.php: immutable claim value object
+    src/Value/Mismatch.php: immutable pairing of a field name, a fact and the claim that contradicts it, handed from the scanner to the recorder
     src/Scanner.php: runs the pipeline for one node
     src/Comparator.php: normalises phone and hours values, attributes claims to facts by the matching rules, and compares
     src/FindingRecorder.php: opens, closes and de-duplicates findings
