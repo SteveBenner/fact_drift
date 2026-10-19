@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  phpcs:
+    name: phpcs (Drupal ${{ matrix.drupal }}, PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - drupal: '~10.5.0'
+            php: '8.1'
+          - drupal: '^11'
+            php: '8.3'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fact_drift
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: gd, pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Create the Drupal project
+        run: |
+          composer create-project drupal/recommended-project:${{ matrix.drupal }} drupal --no-interaction --no-install
+          cd drupal
+          composer config repositories.fact_drift path ../fact_drift
+          composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer config --no-plugins allow-plugins.phpstan/extension-installer true
+          composer require stevebenner/fact_drift:@dev drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+      - name: Check the coding standard
+        run: drupal/vendor/bin/phpcs --standard=fact_drift/phpcs.xml.dist fact_drift
+
+  phpstan:
+    name: phpstan (Drupal ${{ matrix.drupal }}, PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - drupal: '~10.5.0'
+            php: '8.1'
+          - drupal: '^11'
+            php: '8.3'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fact_drift
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: gd, pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Create the Drupal project
+        run: |
+          composer create-project drupal/recommended-project:${{ matrix.drupal }} drupal --no-interaction --no-install
+          cd drupal
+          composer config repositories.fact_drift path ../fact_drift
+          composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer config --no-plugins allow-plugins.phpstan/extension-installer true
+          composer require stevebenner/fact_drift:@dev drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+      - name: Analyse the module
+        working-directory: drupal/web/modules/contrib/fact_drift
+        run: ../../../../vendor/bin/phpstan analyse -c phpstan.neon --no-progress
+
+  phpunit:
+    name: phpunit (Drupal ${{ matrix.drupal }}, PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - drupal: '~10.5.0'
+            php: '8.1'
+          - drupal: '^11'
+            php: '8.3'
+    env:
+      SIMPLETEST_DB: sqlite://localhost/sites/default/files/.ht.sqlite
+      SIMPLETEST_BASE_URL: http://127.0.0.1:8080
+      BROWSERTEST_OUTPUT_DIRECTORY: web/sites/simpletest/browser_output
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fact_drift
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: gd, pdo_sqlite, sqlite3
+          tools: composer:v2
+      - name: Create the Drupal project
+        run: |
+          composer create-project drupal/recommended-project:${{ matrix.drupal }} drupal --no-interaction --no-install
+          cd drupal
+          composer config repositories.fact_drift path ../fact_drift
+          composer config --no-plugins allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer config --no-plugins allow-plugins.phpstan/extension-installer true
+          composer require stevebenner/fact_drift:@dev drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+      - name: Prepare the test directories
+        working-directory: drupal
+        run: |
+          mkdir -p web/sites/default/files web/sites/simpletest/browser_output
+          chmod -R 777 web/sites/default/files web/sites/simpletest
+      - name: Start the web server
+        working-directory: drupal
+        run: |
+          php -S 127.0.0.1:8080 -t web web/.ht.router.php > "$RUNNER_TEMP/server.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -s -o /dev/null http://127.0.0.1:8080/ && break
+            sleep 1
+          done
+      - name: Run the unit, kernel and functional suites
+        working-directory: drupal
+        run: vendor/bin/phpunit -c web/core web/modules/contrib/fact_drift

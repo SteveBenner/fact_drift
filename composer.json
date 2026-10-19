@@ -1,0 +1,13 @@
+{
+    "name": "stevebenner/fact_drift",
+    "type": "drupal-module",
+    "description": "Finds published pages whose facts have drifted from their canonical source.",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://github.com/SteveBenner/fact_drift",
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "drush/drush": "^12.5 || ^13"
+    }
+}

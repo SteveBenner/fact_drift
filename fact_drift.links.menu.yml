@@ -1,0 +1,14 @@
+fact_drift.report:
+  title: Fact drift
+  parent: system.admin_reports
+  route_name: fact_drift.report
+
+fact_drift.settings:
+  title: Fact Drift Sentinel
+  parent: system.admin_config_content
+  route_name: fact_drift.settings
+
+entity.fact_drift_source.collection:
+  title: Fact drift sources
+  parent: fact_drift.settings
+  route_name: entity.fact_drift_source.collection

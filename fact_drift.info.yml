@@ -1,0 +1,10 @@
+name: Fact Drift Sentinel
+type: module
+description: Finds published pages whose facts have drifted from their canonical source.
+package: Content
+core_version_requirement: ^10.5 || ^11
+php: 8.1
+dependencies:
+  - drupal:node
+  - drupal:options
+configure: fact_drift.settings

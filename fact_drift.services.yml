@@ -1,0 +1,26 @@
+services:
+  fact_drift.source_manager:
+    class: Drupal\fact_drift\FactSource\FactSourceManager
+    parent: default_plugin_manager
+  fact_drift.extractor_manager:
+    class: Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager
+    parent: default_plugin_manager
+  fact_drift.comparator:
+    class: Drupal\fact_drift\Comparator
+  fact_drift.finding_recorder:
+    class: Drupal\fact_drift\FindingRecorder
+    arguments: ['@entity_type.manager', '@datetime.time']
+  fact_drift.scanner:
+    class: Drupal\fact_drift\Scanner
+    arguments: ['@entity_type.manager', '@fact_drift.source_manager', '@fact_drift.extractor_manager', '@fact_drift.comparator', '@fact_drift.finding_recorder', '@config.factory', '@cache.default', '@logger.channel.fact_drift']
+  logger.channel.fact_drift:
+    parent: logger.channel_base
+    arguments: [fact_drift]
+  fact_drift.source_config_subscriber:
+    class: Drupal\fact_drift\EventSubscriber\SourceConfigSubscriber
+    arguments: ['@cache_tags.invalidator']
+    tags:
+      - { name: event_subscriber }
+  Drupal\fact_drift\Hook\FactDriftHooks:
+    class: Drupal\fact_drift\Hook\FactDriftHooks
+    arguments: ['@config.factory', '@queue', '@state', '@entity_type.manager', '@fact_drift.finding_recorder', '@datetime.time', '@logger.channel.fact_drift']

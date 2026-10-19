@@ -1,0 +1,86 @@
+fact_drift.settings:
+  type: config_object
+  label: 'Fact Drift Sentinel settings'
+  mapping:
+    content_types:
+      type: sequence
+      label: 'Content types to scan'
+      sequence:
+        type: string
+        label: 'Content type'
+    field_types:
+      type: sequence
+      label: 'Field types to scan'
+      sequence:
+        type: string
+        label: 'Field type'
+    extractors:
+      type: sequence
+      label: 'Enabled extractors'
+      sequence:
+        type: string
+        label: 'Extractor plugin ID'
+    full_scan_interval:
+      type: integer
+      label: 'Seconds between full scans'
+    nodes_per_cron:
+      type: integer
+      label: 'Nodes queued per cron run'
+    llm:
+      type: mapping
+      label: 'AI extractor settings'
+      mapping:
+        enabled:
+          type: boolean
+          label: 'AI extractor enabled'
+        provider:
+          type: string
+          label: 'Provider'
+        model:
+          type: string
+          label: 'Model'
+        max_calls_per_run:
+          type: integer
+          label: 'Maximum calls per run'
+        min_interval_ms:
+          type: integer
+          label: 'Minimum milliseconds between calls'
+        timeout_seconds:
+          type: integer
+          label: 'Call timeout in seconds'
+        max_retries:
+          type: integer
+          label: 'Maximum retries'
+    kill_switch:
+      type: boolean
+      label: 'Force deterministic extraction only'
+
+fact_drift.source.*:
+  type: config_entity
+  label: 'Fact drift source'
+  mapping:
+    id:
+      type: string
+      label: 'ID'
+    label:
+      type: label
+      label: 'Label'
+    plugin:
+      type: string
+      label: 'Source plugin'
+    plugin_settings:
+      type: fact_drift.source_plugin.[%parent.plugin]
+    claim_types:
+      type: sequence
+      label: 'Claim types provided'
+      sequence:
+        type: string
+        label: 'Claim type'
+
+fact_drift.source_plugin.csv:
+  type: mapping
+  label: 'CSV source settings'
+  mapping:
+    path:
+      type: string
+      label: 'CSV path'

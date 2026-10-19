@@ -1,0 +1,28 @@
+fact_drift.report:
+  path: /admin/reports/fact-drift
+  defaults:
+    _controller: Drupal\fact_drift\Controller\ReportController::report
+    _title: Fact drift
+  requirements:
+    _permission: view fact drift findings
+
+fact_drift.finding_dismiss:
+  path: /admin/reports/fact-drift/{fact_drift_finding}/dismiss
+  defaults:
+    _controller: Drupal\fact_drift\Controller\FindingActionController::dismiss
+  requirements:
+    _entity_access: fact_drift_finding.update
+    _csrf_token: 'TRUE'
+  options:
+    parameters:
+      fact_drift_finding:
+        type: entity:fact_drift_finding
+  methods: [GET]
+
+fact_drift.settings:
+  path: /admin/config/content/fact-drift
+  defaults:
+    _form: Drupal\fact_drift\Form\SettingsForm
+    _title: Fact Drift Sentinel
+  requirements:
+    _permission: administer fact drift

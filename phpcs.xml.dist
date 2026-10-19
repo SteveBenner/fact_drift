@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<ruleset name="fact_drift">
+  <description>Drupal and DrupalPractice coding standards for Fact Drift Sentinel.</description>
+  <arg name="extensions" value="php,module,inc,install,info,yml,css"/>
+  <arg name="colors"/>
+  <arg value="s"/>
+  <rule ref="Drupal"/>
+  <rule ref="DrupalPractice"/>
+  <exclude-pattern>*/vendor/*</exclude-pattern>
+  <exclude-pattern>*/node_modules/*</exclude-pattern>
+  <exclude-pattern>*/.ddev/*</exclude-pattern>
+  <exclude-pattern>*/recipes/*</exclude-pattern>
+</ruleset>

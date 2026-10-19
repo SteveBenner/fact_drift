@@ -1,0 +1,67 @@
+<?php
+
+/**
+ * @file
+ * Procedural hook bridges for Drupal 10.3.
+ *
+ * Drupal 11.1 and later use the hook class.
+ */
+
+use Drupal\Core\Hook\Attribute\LegacyHook;
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\fact_drift\Hook\FactDriftHooks;
+use Drupal\node\NodeInterface;
+
+/**
+ * Implements hook_node_insert().
+ */
+#[LegacyHook]
+function fact_drift_node_insert(NodeInterface $node): void {
+  \Drupal::service(FactDriftHooks::class)->nodeInsert($node);
+}
+
+/**
+ * Implements hook_node_update().
+ */
+#[LegacyHook]
+function fact_drift_node_update(NodeInterface $node): void {
+  \Drupal::service(FactDriftHooks::class)->nodeUpdate($node);
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+#[LegacyHook]
+function fact_drift_node_delete(NodeInterface $node): void {
+  \Drupal::service(FactDriftHooks::class)->nodeDelete($node);
+}
+
+/**
+ * Implements hook_cron().
+ */
+#[LegacyHook]
+function fact_drift_cron(): void {
+  \Drupal::service(FactDriftHooks::class)->cron();
+}
+
+/**
+ * Implements hook_theme().
+ *
+ * @return array<string, array<string, mixed>>
+ *   The theme hook definitions.
+ */
+#[LegacyHook]
+function fact_drift_theme(): array {
+  return \Drupal::service(FactDriftHooks::class)->theme();
+}
+
+/**
+ * Implements hook_help().
+ *
+ * @return array<string, mixed>|null
+ *   A render array for the help page, or NULL for any other route.
+ */
+#[LegacyHook]
+function fact_drift_help(string $route_name, RouteMatchInterface $route_match): ?array {
+  return \Drupal::service(FactDriftHooks::class)->help($route_name, $route_match);
+}

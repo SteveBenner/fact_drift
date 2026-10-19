@@ -1,0 +1,11 @@
+parameters:
+  level: 6
+  paths:
+    - src
+    - fact_drift.module
+    - tests
+  ignoreErrors:
+    -
+      message: '#Attribute class Drupal\\Core\\Hook\\Attribute\\(Hook|LegacyHook) does not exist#'
+      reportUnmatched: false
+  reportUnmatchedIgnoredErrors: false

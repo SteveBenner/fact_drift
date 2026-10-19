@@ -4,5 +4,12 @@
 /.phpunit.cache/
 /.phpunit.result.cache
 /.env
+/.editorconfig
+/.gitattributes
+/recipes/
+/phpstan-baseline.neon
+/composer.contrib.json
+/composer.contrib.lock
+TMP_AGENT_FILE_LOCKS.yml
 DECISIONS.md
 .specstory/

@@ -1,0 +1,4 @@
+report:
+  css:
+    layout:
+      css/fact-drift-report.css: {}

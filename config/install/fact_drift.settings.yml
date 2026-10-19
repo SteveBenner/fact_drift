@@ -1,0 +1,21 @@
+content_types:
+  - page
+  - article
+field_types:
+  - text_with_summary
+  - text_long
+  - string_long
+extractors:
+  - phone
+  - hours
+full_scan_interval: 86400
+nodes_per_cron: 200
+llm:
+  enabled: false
+  provider: ''
+  model: ''
+  max_calls_per_run: 20
+  min_interval_ms: 1000
+  timeout_seconds: 10
+  max_retries: 2
+kill_switch: false

@@ -1,0 +1,140 @@
+.fact-drift-report {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fact-drift-report .fact-drift-report__summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1em;
+  align-items: start;
+}
+
+@media (max-width: 639px) {
+  .fact-drift-report .fact-drift-report__summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fact-drift-report .fact-drift-report__summary table {
+  width: 100%;
+  margin-block: 0;
+}
+
+.fact-drift-report .fact-drift-report__summary :is(td, th) {
+  height: auto;
+  padding-block: 0.25em;
+}
+
+.fact-drift-report .fact-drift-report__count {
+  width: 5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.fact-drift-report .fact-drift-report__filters {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 2em;
+}
+
+.fact-drift-report .fact-drift-report__filters ul {
+  margin-inline-start: 0;
+}
+
+.fact-drift-report .fact-drift-report__filters li:first-child {
+  padding-inline-start: 0;
+}
+
+.fact-drift-report .fact-drift-report__scroll {
+  position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  container-type: inline-size;
+}
+
+@container (max-width: 919px) {
+  .fact-drift-report .fact-drift-report__scroll .responsive-enabled .priority-low {
+    display: none;
+  }
+}
+
+@container (max-width: 719px) {
+  .fact-drift-report .fact-drift-report__scroll .responsive-enabled .priority-medium {
+    display: none;
+  }
+}
+
+.fact-drift-report .fact-drift-report__scroll .tableresponsive-toggle-columns {
+  position: sticky;
+  inset-inline-start: 0;
+  width: fit-content;
+}
+
+.fact-drift-report .fact-drift-report__scroll th {
+  white-space: normal;
+}
+
+.fact-drift-report .fact-drift-report__scroll td {
+  vertical-align: top;
+}
+
+.fact-drift-report .fact-drift-report__scroll .fact-drift-report__ops {
+  position: sticky;
+  inset-inline-end: 0;
+}
+
+.fact-drift-report .fact-drift-report__scroll td.fact-drift-report__ops {
+  background-color: inherit;
+}
+
+.fact-drift-report .fact-drift-report__field {
+  overflow-wrap: anywhere;
+}
+
+.fact-drift-report .fact-drift-report__removed,
+.fact-drift-report .fact-drift-report__machine {
+  overflow-wrap: normal;
+}
+
+.fact-drift-report .fact-drift-report__machine {
+  display: block;
+  overflow-wrap: normal;
+}
+
+.fact-drift-report .fact-drift-report__seen {
+  min-width: 6.5em;
+}
+
+.fact-drift-report .fact-drift-report__title,
+.fact-drift-report .fact-drift-report__snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.fact-drift-report .fact-drift-report__title {
+  min-width: 7em;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.fact-drift-report .fact-drift-report__snippet {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.fact-drift-report .fact-drift-report__snippet-cell {
+  min-width: 8em;
+  max-width: 28em;
+}
+
+.fact-drift-report .fact-drift-report__more summary {
+  padding: 2px 0;
+  min-height: 0;
+}
+
+.fact-drift-report .fact-drift-report__snippet-cell:has(details[open]) .fact-drift-report__snippet {
+  display: none;
+}

@@ -1,0 +1,7 @@
+view fact drift findings:
+  title: View fact drift findings
+manage fact drift findings:
+  title: Dismiss findings and draft corrections
+administer fact drift:
+  title: Administer Fact Drift Sentinel
+  restrict access: true

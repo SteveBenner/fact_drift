@@ -1,0 +1,5 @@
+entity.fact_drift_source.add_form:
+  route_name: entity.fact_drift_source.add_form
+  title: Add source
+  appears_on:
+    - entity.fact_drift_source.collection
