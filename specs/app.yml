@@ -73,10 +73,19 @@ behaviour:
     hours: >
       day ranges and times are parsed into a canonical form ("Mon-Fri 08:00-17:00; Sat 09:00-12:00").
       Text the parser cannot read produces no claim, so an unreadable format never raises a false finding.
+      A time is read only with a meridiem (8am, 8:30 p.m.) or as 24-hour HH:MM; a start time without a
+      meridiem takes the end time's, unless that puts the start after the end, when it is morning
+      ("9-5pm" is 09:00-17:00). A bare number with neither ("9-5") is unreadable.
+  failed_source: >
+    A source that cannot be read (a missing or malformed CSV) is logged to the fact_drift channel and
+    skipped for that scan: its facts are absent and none of its open findings are closed by that scan.
   finding_lifecycle:
     open: created when a mismatch is first seen; the same node, field, fact and found value never opens twice
     closed: set by a later scan in which that mismatch is gone, or when the node is deleted
     dismissed: set by a person with the manage permission, with a reason; a dismissed finding is not reopened for the same found value
+    dismiss_reason_from_report: >
+      The report's dismiss link is a GET with a CSRF token and carries no form, so it records the reason
+      "Dismissed from the report by <the account's display name>".
   corrections:
     milestone: stretch
     rule: >
@@ -115,7 +124,7 @@ architecture:
     src/Value/Fact.php: immutable fact value object
     src/Value/Claim.php: immutable claim value object
     src/Scanner.php: runs the pipeline for one node
-    src/Comparator.php: normalises and compares
+    src/Comparator.php: normalises phone and hours values, attributes claims to facts by the matching rules, and compares
     src/FindingRecorder.php: opens, closes and de-duplicates findings
     src/Hook/FactDriftHooks.php: object-oriented hooks (Drupal 11.1 and later)
     src/EventSubscriber/SourceConfigSubscriber.php: reacts when a source's config is saved
@@ -129,6 +138,8 @@ architecture:
     tests/src/Functional: browser tests
     tests/fixtures/clinics.csv: sample facts
     .github/workflows/ci.yml: CI
+    phpcs.xml.dist: the coding-standard ruleset CI and DDEV run
+    phpstan.neon: the static-analysis configuration CI and DDEV run
     .ddev/: local development
   services:
     fact_drift.source_manager:
@@ -150,8 +161,14 @@ architecture:
       arguments: [fact_drift]
     fact_drift.source_config_subscriber:
       class: Drupal\fact_drift\EventSubscriber\SourceConfigSubscriber
-      arguments: ["@cache_tags.invalidator", "@queue"]
+      arguments: ["@cache_tags.invalidator"]
       tags: [{ name: event_subscriber }]
+    Drupal\fact_drift\Hook\FactDriftHooks:
+      class: Drupal\fact_drift\Hook\FactDriftHooks
+      arguments: ["@config.factory", "@queue", "@state", "@entity_type.manager", "@fact_drift.finding_recorder", "@datetime.time", "@logger.channel.fact_drift"]
+      reason: >
+        Drupal 11.1 and later discover hook classes in src/Hook on their own; Drupal 10.3 does not, so the
+        class is registered as a service and the #[LegacyHook] bridges in fact_drift.module call it by this id.
     rule: "dependencies arrive through constructors or create(); no \\Drupal:: static calls in classes"
   entities:
     fact_drift_finding:
@@ -241,7 +258,7 @@ architecture:
         llm: { milestone: stretch, through: ai module provider abstraction }
   hooks_and_events:
     node_insert_and_update: when a published node of a configured type is saved, queue one rescan item for it; the editor's request does no scanning
-    node_delete: close every open finding for the node with the reason node deleted
+    node_delete: close every open finding for the node, and log "node deleted" with the node id and the count closed to the fact_drift channel (a finding has no close-reason field)
     cron: when the last full scan is older than full_scan_interval, queue rescan items for up to nodes_per_cron published nodes, continuing from a stored cursor in State
     theme: register fact_drift_report for templates/fact-drift-report.html.twig
     help: a help page for the module
