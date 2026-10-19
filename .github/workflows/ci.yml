@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - drupal: '~10.5.0'
+          - drupal: '~10.6.0'
             php: '8.1'
           - drupal: '^11'
             php: '8.3'
@@ -26,6 +26,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: gd, pdo_sqlite, sqlite3
           tools: composer:v2
+          coverage: none
       - name: Create the Drupal project
         run: |
           composer create-project drupal/recommended-project:${{ matrix.drupal }} drupal --no-interaction --no-install
@@ -46,7 +47,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - drupal: '~10.5.0'
+          - drupal: '~10.6.0'
             php: '8.1'
           - drupal: '^11'
             php: '8.3'
@@ -59,6 +60,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: gd, pdo_sqlite, sqlite3
           tools: composer:v2
+          coverage: none
       - name: Create the Drupal project
         run: |
           composer create-project drupal/recommended-project:${{ matrix.drupal }} drupal --no-interaction --no-install
@@ -80,7 +82,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - drupal: '~10.5.0'
+          - drupal: '~10.6.0'
             php: '8.1'
           - drupal: '^11'
             php: '8.3'
@@ -97,6 +99,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: gd, pdo_sqlite, sqlite3
           tools: composer:v2
+          coverage: none
       - name: Create the Drupal project
         run: |
           composer create-project drupal/recommended-project:${{ matrix.drupal }} drupal --no-interaction --no-install
@@ -113,9 +116,9 @@ jobs:
           mkdir -p web/sites/default/files web/sites/simpletest/browser_output
           chmod -R 777 web/sites/default/files web/sites/simpletest
       - name: Start the web server
-        working-directory: drupal
+        working-directory: drupal/web
         run: |
-          php -S 127.0.0.1:8080 -t web web/.ht.router.php > "$RUNNER_TEMP/server.log" 2>&1 &
+          php -S 127.0.0.1:8080 .ht.router.php > "$RUNNER_TEMP/server.log" 2>&1 &
           for attempt in $(seq 1 30); do
             curl -s -o /dev/null http://127.0.0.1:8080/ && break
             sleep 1

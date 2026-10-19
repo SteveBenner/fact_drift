@@ -1,12 +1,12 @@
 # Fact Drift Sentinel
 
-A Drupal 10.5 and 11 module that finds published pages whose facts have drifted from their canonical source.
+A Drupal 10.6 and 11 module that finds published pages whose facts have drifted from their canonical source.
 
 Organisations that run several Drupal sites repeat the same facts across many pages, such as clinic phone numbers and opening hours. When the source of truth changes, the copies on published pages go stale, and nothing notices. Fact Drift Sentinel reads the true facts from a configured source, finds the matching claims in published content, and reports every mismatch with the page, the snippet, the expected value, and the value it found.
 
 ## Status
 
-Version 0.1.0, the MVP in [`specs/app.yml`](specs/app.yml). The specification is the authority for what the module does and how it is built. CI runs phpcs, PHPStan level 6, and PHPUnit on Drupal 10.5 with PHP 8.1 and on Drupal 11 with PHP 8.3.
+Version 0.1.0, the MVP in [`specs/app.yml`](specs/app.yml). The specification is the authority for what the module does and how it is built. CI runs phpcs, PHPStan level 6, and PHPUnit on Drupal 10.6 with PHP 8.1 and on Drupal 11 with PHP 8.3.
 
 ## How it works
 
