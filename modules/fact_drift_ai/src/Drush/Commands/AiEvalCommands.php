@@ -12,6 +12,7 @@ use Drupal\fact_drift_ai\Prompt;
 use Drupal\fact_drift_ai\ResponseValidator;
 use Drush\Attributes as CLI;
 use Drush\Commands\DrushCommands;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -166,7 +167,9 @@ final class AiEvalCommands extends DrushCommands {
         'status' => $status,
       ];
     }
-    $this->io()->getErrorStyle()->writeln($this->summary($totals, $rejections, $model, $reasoning));
+    $output = $this->output();
+    $stderr = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
+    $stderr->writeln($this->summary($totals, $rejections, $model, $reasoning));
     return new RowsOfFields($rows);
   }
 
