@@ -574,7 +574,7 @@ architecture:
         provider and the configured or given model, bypassing the cache and the allowlist (the fixture is not
         site content). It prints, per case, the expected and returned claims, and overall precision, recall,
         mean latency and rejections by reason, on (type, value) pairs.
-      safety: it refuses to run when the kill switch is on or no provider is configured; --max-calls replaces max_calls_per_run for the eval only and defaults to the number of cases, at most 200; min_interval_ms, timeouts and retries apply
+      safety: it refuses to run when the kill switch is on or no provider is configured; --max-calls replaces max_calls_per_run for the eval only and defaults to the number of cases times (1 + max_retries), at most 200, so a retried case never pushes the last one out of the budget; the summary line goes to stderr so --format=json stays parseable; min_interval_ms, timeouts and retries apply
       default_model: the README's documented default model is the one the eval picks (decided 2026-10-19), with its numbers
 
 security:
