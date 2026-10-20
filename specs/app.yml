@@ -727,6 +727,11 @@ decisions:
     The AI extractor is demonstrated with a local model through Ollama only, so no page text leaves the host
     (decided 2026-10-19). The code goes through the ai module's provider abstraction, so a hosted provider is a
     configuration change, but none is documented or demonstrated.
+  ai_default_model: >
+    gemma3:4b, picked by drush fact-drift:ai-eval on 2026-10-20 (warm models, reasoning none, 30 cases, 32-core
+    CPU with no GPU): gemma3:4b precision 0.969, recall 0.939, median 4.4 s; qwen3:8b 0.939 and 0.939, median 4.0 s, but
+    only with the timeout raised to 30 s; qwen3:4b 0.935 and 0.879, median 4.3 s. The rule was the best precision at an
+    acceptable latency, because a wrong value becomes a false finding.
 
 open_decisions:
   - whether and when to publish on drupal.org (outward-facing; the owner decides)
