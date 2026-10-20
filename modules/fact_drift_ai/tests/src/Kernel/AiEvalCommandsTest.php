@@ -5,6 +5,7 @@ namespace Drupal\Tests\fact_drift_ai\Kernel;
 use Drupal\Component\Serialization\Yaml;
 use Drupal\fact_drift_ai\Drush\Commands\AiEvalCommands;
 use Drush\Log\DrushLoggerManager;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -15,6 +16,7 @@ use Symfony\Component\Console\Output\ConsoleOutput;
  * @group fact_drift_ai
  * @covers \Drupal\fact_drift_ai\Drush\Commands\AiEvalCommands
  */
+#[RunTestsInSeparateProcesses]
 class AiEvalCommandsTest extends AiKernelTestBase {
 
   /**

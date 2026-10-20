@@ -4,6 +4,7 @@ namespace Drupal\Tests\fact_drift_ai\Kernel;
 
 use Drupal\fact_drift_ai\Plugin\AiProvider\TimeoutOllamaProvider;
 use Drupal\KernelTests\KernelTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests that the ollama provider is swapped for one that honours timeouts.
@@ -14,6 +15,7 @@ use Drupal\KernelTests\KernelTestBase;
  * @covers \Drupal\fact_drift_ai\Plugin\AiProvider\TimeoutOllamaProvider
  * @covers \Drupal\fact_drift_ai\Hook\FactDriftAiHooks::aiProviderInfoAlter
  */
+#[RunTestsInSeparateProcesses]
 class TimeoutOllamaProviderTest extends KernelTestBase {
 
   /**

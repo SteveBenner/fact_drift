@@ -5,6 +5,7 @@ namespace Drupal\Tests\fact_drift\Kernel;
 use Drupal\fact_drift\Entity\Source;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\Tests\SchemaCheckTestTrait;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests that the module's configuration validates against its schema.
@@ -12,6 +13,7 @@ use Drupal\Tests\SchemaCheckTestTrait;
  * @group fact_drift
  * @covers \Drupal\fact_drift\Entity\Source
  */
+#[RunTestsInSeparateProcesses]
 class ConfigSchemaTest extends KernelTestBase {
 
   use SchemaCheckTestTrait;

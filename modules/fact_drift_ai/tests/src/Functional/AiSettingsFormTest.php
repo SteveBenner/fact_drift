@@ -6,6 +6,7 @@ use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the AI extractor tab: access, saving, validation and the status.
@@ -13,6 +14,7 @@ use Drupal\Tests\BrowserTestBase;
  * @group fact_drift_ai
  * @covers \Drupal\fact_drift_ai\Form\AiSettingsForm
  */
+#[RunTestsInSeparateProcesses]
 class AiSettingsFormTest extends BrowserTestBase {
 
   /**

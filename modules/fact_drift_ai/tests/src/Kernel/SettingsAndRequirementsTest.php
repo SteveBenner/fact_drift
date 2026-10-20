@@ -5,6 +5,7 @@ namespace Drupal\Tests\fact_drift_ai\Kernel;
 use Drupal\fact_drift_ai\Hook\FactDriftAiHooks;
 use Drupal\fact_drift_ai\Plugin\AiProvider\TimeoutOllamaProvider;
 use Drupal\Tests\SchemaCheckTestTrait;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the default settings' schema, the provider alter and the requirement.
@@ -12,6 +13,7 @@ use Drupal\Tests\SchemaCheckTestTrait;
  * @group fact_drift_ai
  * @covers \Drupal\fact_drift_ai\Hook\FactDriftAiHooks
  */
+#[RunTestsInSeparateProcesses]
 class SettingsAndRequirementsTest extends AiKernelTestBase {
 
   use SchemaCheckTestTrait;

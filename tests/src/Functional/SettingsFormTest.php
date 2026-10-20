@@ -4,6 +4,7 @@ namespace Drupal\Tests\fact_drift\Functional;
 
 use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests that the settings form saves every element to configuration.
@@ -11,6 +12,7 @@ use Drupal\Tests\BrowserTestBase;
  * @group fact_drift
  * @covers \Drupal\fact_drift\Form\SettingsForm
  */
+#[RunTestsInSeparateProcesses]
 class SettingsFormTest extends BrowserTestBase {
 
   /**

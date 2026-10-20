@@ -6,6 +6,7 @@ use Drupal\fact_drift\Value\Claim;
 use Drupal\fact_drift\Value\ExtractionContext;
 use Drupal\fact_drift_ai\Plugin\ClaimExtractor\LlmExtractor;
 use Drupal\node\NodeInterface;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the AI extractor's gate, modes, cache and deferrals, with the fake.
@@ -13,6 +14,7 @@ use Drupal\node\NodeInterface;
  * @group fact_drift_ai
  * @covers \Drupal\fact_drift_ai\Plugin\ClaimExtractor\LlmExtractor
  */
+#[RunTestsInSeparateProcesses]
 class LlmExtractorTest extends AiKernelTestBase {
 
   /**

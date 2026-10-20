@@ -11,6 +11,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests that the recorder opens, closes, de-duplicates and dismisses findings.
@@ -18,6 +19,7 @@ use Drupal\node\NodeInterface;
  * @group fact_drift
  * @covers \Drupal\fact_drift\FindingRecorder
  */
+#[RunTestsInSeparateProcesses]
 class FindingRecorderTest extends KernelTestBase {
 
   /**

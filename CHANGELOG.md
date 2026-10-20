@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-20
+
+### Fixed
+- **Drupal 12 test readiness:** all 18 kernel and functional test classes in `tests/src` and `modules/fact_drift_ai/tests/src` now carry `#[RunTestsInSeparateProcesses]`. Drupal 11.3 deprecates test classes without it, and Drupal 12 throws. PHPUnit 9.6 on the Drupal 10.6 row ignores the attribute, and `phpstan.neon` ignores its missing class there, as it already does for the hook attributes.
+
 ## [0.2.0] - 2026-10-20
 
 The `ai_extractor` milestone in `specs/app.yml`.

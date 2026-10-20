@@ -9,6 +9,7 @@ use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests that dismissing a finding is protected by a token.
@@ -16,6 +17,7 @@ use Drupal\Tests\BrowserTestBase;
  * @group fact_drift
  * @covers \Drupal\fact_drift\Controller\FindingActionController
  */
+#[RunTestsInSeparateProcesses]
 class DismissTest extends BrowserTestBase {
 
   /**

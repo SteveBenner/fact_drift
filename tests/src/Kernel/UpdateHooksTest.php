@@ -4,12 +4,14 @@ namespace Drupal\Tests\fact_drift\Kernel;
 
 use Drupal\fact_drift\Entity\Finding;
 use Drupal\KernelTests\KernelTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the 0.2.0 update hooks.
  *
  * @group fact_drift
  */
+#[RunTestsInSeparateProcesses]
 class UpdateHooksTest extends KernelTestBase {
 
   /**

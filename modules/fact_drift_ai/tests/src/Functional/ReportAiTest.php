@@ -10,6 +10,7 @@ use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
 use Drupal\user\RoleInterface;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the report's AI marker and extractor filter for real AI findings.
@@ -18,6 +19,7 @@ use Drupal\user\RoleInterface;
  * @covers \Drupal\fact_drift\Controller\ReportController
  * @covers \Drupal\fact_drift_ai\Plugin\ClaimExtractor\LlmExtractor
  */
+#[RunTestsInSeparateProcesses]
 class ReportAiTest extends BrowserTestBase {
 
   /**

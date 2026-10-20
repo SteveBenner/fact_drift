@@ -11,6 +11,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests plain and contextual extractors, provenance and deferred work.
@@ -21,6 +22,7 @@ use Drupal\node\NodeInterface;
  * @covers \Drupal\fact_drift\Entity\Finding
  * @covers \Drupal\fact_drift\Plugin\QueueWorker\RescanWorker
  */
+#[RunTestsInSeparateProcesses]
 class ContextualExtractorTest extends KernelTestBase {
 
   /**

@@ -11,6 +11,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests scanning real nodes against the fixture through a source entity.
@@ -19,6 +20,7 @@ use Drupal\node\NodeInterface;
  * @covers \Drupal\fact_drift\Scanner
  * @covers \Drupal\fact_drift\Plugin\FactSource\CsvSource
  */
+#[RunTestsInSeparateProcesses]
 class ScannerTest extends KernelTestBase {
 
   /**

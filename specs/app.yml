@@ -3,7 +3,7 @@ app:
   id: fact_drift
   name: Fact Drift Sentinel
   kind: drupal-module
-  version: 0.2.0
+  version: 0.2.1
   status: ai_extractor
   license: GPL-2.0-or-later
   repository: https://github.com/SteveBenner/fact_drift

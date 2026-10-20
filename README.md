@@ -6,7 +6,7 @@ Organisations that run several Drupal sites repeat the same facts across many pa
 
 ## Status
 
-Version 0.2.0: the MVP plus the optional AI extractor, both described in [`specs/app.yml`](specs/app.yml). The specification is the authority for what the module does and how it is built. CI runs phpcs, PHPStan level 6, and PHPUnit on Drupal 10.6 with PHP 8.1 and on Drupal 11 with PHP 8.3.
+Version 0.2.1: the MVP plus the optional AI extractor, both described in [`specs/app.yml`](specs/app.yml). The specification is the authority for what the module does and how it is built. CI runs phpcs, PHPStan level 6, and PHPUnit on Drupal 10.6 with PHP 8.1 and on Drupal 11 with PHP 8.3.
 
 ## How it works
 

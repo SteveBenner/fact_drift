@@ -3,6 +3,7 @@
 namespace Drupal\Tests\fact_drift\Functional;
 
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests that the settings form lists only plain extractors.
@@ -10,6 +11,7 @@ use Drupal\Tests\BrowserTestBase;
  * @group fact_drift
  * @covers \Drupal\fact_drift\Form\SettingsForm
  */
+#[RunTestsInSeparateProcesses]
 class SettingsFormExtractorsTest extends BrowserTestBase {
 
   /**

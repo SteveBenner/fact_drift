@@ -8,6 +8,7 @@ use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests who may open the report and how its evidence is rendered.
@@ -15,6 +16,7 @@ use Drupal\Tests\BrowserTestBase;
  * @group fact_drift
  * @covers \Drupal\fact_drift\Controller\ReportController
  */
+#[RunTestsInSeparateProcesses]
 class ReportAccessTest extends BrowserTestBase {
 
   /**

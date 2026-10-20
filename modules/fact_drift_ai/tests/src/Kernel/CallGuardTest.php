@@ -5,6 +5,7 @@ namespace Drupal\Tests\fact_drift_ai\Kernel;
 use Drupal\fact_drift_ai\CallGuard;
 use Drupal\fact_drift_ai\CallResult;
 use Drupal\fact_drift_ai\Prompt;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the guard around every model call, against the fake provider.
@@ -13,6 +14,7 @@ use Drupal\fact_drift_ai\Prompt;
  * @covers \Drupal\fact_drift_ai\CallGuard
  * @covers \Drupal\fact_drift_ai\CallResult
  */
+#[RunTestsInSeparateProcesses]
 class CallGuardTest extends AiKernelTestBase {
 
   /**

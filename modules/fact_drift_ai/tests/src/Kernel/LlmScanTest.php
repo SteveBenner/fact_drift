@@ -3,6 +3,7 @@
 namespace Drupal\Tests\fact_drift_ai\Kernel;
 
 use Drupal\node\NodeInterface;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Tests the AI extractor inside the scan: findings, deferral and outages.
@@ -11,6 +12,7 @@ use Drupal\node\NodeInterface;
  * @covers \Drupal\fact_drift_ai\Plugin\ClaimExtractor\LlmExtractor
  * @covers \Drupal\fact_drift_ai\CallGuard
  */
+#[RunTestsInSeparateProcesses]
 class LlmScanTest extends AiKernelTestBase {
 
   /**
