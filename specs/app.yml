@@ -278,11 +278,12 @@ architecture:
         rest: { milestone: stretch, settings: [url, timeout_seconds], guardrails: same as the LLM call rules below }
     ClaimExtractor:
       attribute: >
-        Drupal\fact_drift\Attribute\ClaimExtractor (id, label, claim_type, weight, claim_types, marker). claim_type is the
+        Drupal\fact_drift\Attribute\ClaimExtractor (id, label, claim_type, weight, claim_types, marker, claim_label). claim_type is the
         one type a plain extractor finds and labels; it is NULL for an extractor that finds only types other
         extractors declare, which lists them in claim_types. Claim-type labels (report, filters) come only from
         extractors with a claim_type. marker is the short text a contextual extractor shows beside its findings
-        ("AI" for llm); plain extractors have none.
+        ("AI" for llm); plain extractors have none. claim_label is the claim type's own label ("Phone"), which
+        claim-type labels use, so a plain extractor's label can name the extractor ("Phone patterns").
       discovery: Plugin/ClaimExtractor in every enabled module, attribute discovery, alter hook fact_drift_extractor_info
       interface: extract(string $text) returns Claim[] with offsets and snippets
       contextual_interface: >
