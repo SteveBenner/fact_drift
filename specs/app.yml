@@ -73,7 +73,7 @@ glossary:
 behaviour:
   pipeline:
     - load facts from every enabled source, keeping only facts whose claim type is in the source's claim_types; cache them under the cache tag fact_drift_facts, keyed also by what identifies the source's current content (for csv, the file's modification time and size), so a changed file is reloaded by every scan path
-    - for each published node of a configured content type, read every configured text field in the default language
+    - for each published node of a configured content type, read every configurable field (never a base field such as title or revision_log, which are not page content) whose type is a configured field type, in the default language (base fields excluded from 0.2.0, decided 2026-10-20)
     - run every enabled extractor over the field's text with markup stripped, producing claims; every tag is replaced by a space before stripping, so text in adjacent elements never merges
     - plain extractors run first; contextual extractors run after them, in weight order, and receive the node, the field name and the claims already found in that field
     - attribute each claim to a fact (matching rules below)
@@ -295,9 +295,10 @@ architecture:
         findings (behaviour.finding_lifecycle.closed).
       claim_provenance: every Claim carries the ID of the extractor that produced it, which becomes the finding's extractor
       implementations:
-        phone: { milestone: mvp }
-        hours: { milestone: mvp }
+        phone: { milestone: mvp, label: Phone patterns }
+        hours: { milestone: mvp, label: Hours patterns }
         llm: { milestone: ai_extractor, module: fact_drift_ai, through: ai module provider abstraction, contextual: true, claim_types: [phone, hours] }
+      labels_rule: plain extractors are labelled "<type> patterns" so the extractor filter never repeats the claim-type filter's words (decided 2026-10-20)
   hooks_and_events:
     node_insert_and_update: when a published node of a configured type is saved, queue one rescan item for it; the editor's request does no scanning
     node_delete: close every open finding for the node, and log "node deleted" with the node id and the count closed to the fact_drift channel (a finding has no close-reason field)
@@ -391,6 +392,17 @@ architecture:
         Every snippet the 3-line clamp can cut has a compact disclosure (a summary of one text line, at least
         24px tall, its visible label "Full text" completed by visually hidden text to "Full text of the snippet
         for finding <id>"); opening it replaces the clamped preview rather than repeating it.
+      marker: >
+        The AI marker is text in the claim type cell, which never wraps (label and marker stay together): 0.75em,
+        weight 600, a 1px currentColor border, radius 0.25em, margin-inline-start 0.5em and padding-inline 0.333em
+        of its own font (6px and 4px at a 16px cell), baseline-aligned. The claim type column has no priority class,
+        so it never hides and the marker stays in view (decided 2026-10-20 after the rendered review, D10 and P1).
+      filter_spacing: the filter nav keeps a 0.75em block-end margin, so Drupal's column toggle never reads as a filter option (D2)
+      toggle_resize: >
+        A small behaviour in the report library watches the scroll region with a ResizeObserver and re-runs Drupal's
+        tableresponsive check (throttled to one animation frame), because the container query follows the region's
+        width, which changes with the admin sidebar without a window resize (D1).
+      values: an hours value breaks only between its "; "-separated segments, each rendered nowrap (D9)
       summary_rows: summary table cells drop the admin theme's minimum row height and keep a quarter-em block padding, at every width
       scoping: every rule targets the module's own classes (the filter nav, the summary, the scroll region), never bare elements, so core components such as the pager keep their theme layout
       empty_text: >
@@ -453,9 +465,15 @@ architecture:
     settings_form: >
       AiSettingsForm at /admin/config/content/fact-drift/ai, a ConfigFormBase wired with #config_target. Fields:
       enabled, the one switch that turns the extractor on; provider and model, chosen from the ai module's configured chat providers and their models (with a
-      message and a link to the ai module's settings when none is configured); mode; prefilter and max_chars; the
-      allowlist as the configured content types' scannable fields; the four limits. It shows the kill switch's
-      active state, read-only, linking to the main settings form. Its layout comes from Chris's frontend spec.
+      message and a link to the ai module's settings when none is configured); mode; reasoning, directly after mode;
+      prefilter and max_chars; the allowlist as the configured content types' configurable fields of a scannable type,
+      never base fields such as revision_log, and the extractor refuses an allowlist entry that is not such a field;
+      the four limits, laid out in a four-track grid that drops to two and then one column against the form's own
+      width, with equal number widths and suffixes kept on the input's line. Its status section shows the kill
+      switch's active state, read-only, as "On, stopping every call" or "Off. Change it on the Settings tab." with
+      the tab as the link. Validation is server-side only (no client-side required attribute, so no unthemed browser
+      bubble); errors sit under their field when core's Inline Form Errors is enabled, which the README recommends,
+      and in the message area otherwise. Layout from Chris's frontend spec and his rendered review of 2026-10-20.
     when_it_runs:
       - it is active when fact_drift_ai is installed and enabled is true; it is not listed in fact_drift.settings:extractors, so the AI tab's enabled is its one switch
       - while active, the kill switch on, no usable provider or model, or an open side path (data_governance.side_paths) holds every field (no call, findings kept); while inactive its findings close (behaviour.finding_lifecycle.closed)
