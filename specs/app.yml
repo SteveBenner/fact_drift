@@ -628,6 +628,12 @@ testing:
     the extractor field and both update hooks. Functional: the AI settings form saves and needs the permission,
     the kill-switch override notice, the report's AI marker and extractor filter. Each is shown able to fail.
   rule: every test is shown able to fail by removing the code it covers and watching it go red before it counts
+  process_isolation: >
+    Every kernel and functional test class carries #[RunTestsInSeparateProcesses]. Drupal 11.3 deprecates a
+    kernel or functional class without it, and Drupal 12 throws (https://www.drupal.org/node/3548485). The
+    attribute class is PHPUnit 10's; PHPUnit 9.6 on the Drupal 10.6 row never reads attributes, so there it
+    is an inert no-op, the same bridge shape as #[LegacyHook]. phpstan ignores its "Attribute class does not
+    exist" error on that row, as it does for the hook attributes. Unit tests do not carry it.
 
 ci:
   platform: GitHub Actions
