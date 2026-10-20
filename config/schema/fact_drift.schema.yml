@@ -26,31 +26,6 @@ fact_drift.settings:
     nodes_per_cron:
       type: integer
       label: 'Nodes queued per cron run'
-    llm:
-      type: mapping
-      label: 'AI extractor settings'
-      mapping:
-        enabled:
-          type: boolean
-          label: 'AI extractor enabled'
-        provider:
-          type: string
-          label: 'Provider'
-        model:
-          type: string
-          label: 'Model'
-        max_calls_per_run:
-          type: integer
-          label: 'Maximum calls per run'
-        min_interval_ms:
-          type: integer
-          label: 'Minimum milliseconds between calls'
-        timeout_seconds:
-          type: integer
-          label: 'Call timeout in seconds'
-        max_retries:
-          type: integer
-          label: 'Maximum retries'
     kill_switch:
       type: boolean
       label: 'Force deterministic extraction only'

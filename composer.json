@@ -8,6 +8,11 @@
         "php": ">=8.1"
     },
     "require-dev": {
+        "drupal/ai": "^1.5",
+        "drupal/ai_provider_ollama": "^1.2@RC",
         "drush/drush": "^12.5 || ^13"
+    },
+    "suggest": {
+        "drupal/ai": "Required by the fact_drift_ai submodule, the optional AI claim extractor."
     }
 }

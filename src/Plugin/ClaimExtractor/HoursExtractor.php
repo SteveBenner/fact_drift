@@ -18,8 +18,9 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 #[ClaimExtractor(
   id: 'hours',
-  label: new TranslatableMarkup('Hours'),
+  label: new TranslatableMarkup('Hours patterns'),
   claim_type: 'hours',
+  claim_label: new TranslatableMarkup('Hours'),
   weight: 10,
 )]
 class HoursExtractor extends PluginBase implements ClaimExtractorInterface, ContainerFactoryPluginInterface {

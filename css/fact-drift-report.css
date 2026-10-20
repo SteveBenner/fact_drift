@@ -36,10 +36,15 @@
   display: flex;
   flex-wrap: wrap;
   column-gap: 2em;
+  margin-block-end: 0.75em;
 }
 
 .fact-drift-report .fact-drift-report__filters ul {
   margin-inline-start: 0;
+}
+
+.fact-drift-report .fact-drift-report__filters li {
+  white-space: nowrap;
 }
 
 .fact-drift-report .fact-drift-report__filters li:first-child {
@@ -82,10 +87,16 @@
 .fact-drift-report .fact-drift-report__scroll .fact-drift-report__ops {
   position: sticky;
   inset-inline-end: 0;
+  padding-inline: 0.5em;
+  text-align: center;
 }
 
 .fact-drift-report .fact-drift-report__scroll td.fact-drift-report__ops {
   background-color: inherit;
+}
+
+.fact-drift-report .fact-drift-report__ops .button {
+  margin-inline-end: 0;
 }
 
 .fact-drift-report .fact-drift-report__field {
@@ -137,4 +148,25 @@
 
 .fact-drift-report .fact-drift-report__snippet-cell:has(details[open]) .fact-drift-report__snippet {
   display: none;
+}
+
+.fact-drift-report .fact-drift-report__type {
+  white-space: nowrap;
+}
+
+.fact-drift-report .fact-drift-report__marker {
+  display: inline-block;
+  margin-inline-start: 0.5em;
+  padding-inline: 0.333em;
+  border: 1px solid currentColor;
+  border-radius: 0.25em;
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  vertical-align: baseline;
+}
+
+.fact-drift-report .fact-drift-report__segment {
+  white-space: nowrap;
 }

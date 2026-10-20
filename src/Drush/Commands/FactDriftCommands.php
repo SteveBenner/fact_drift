@@ -4,6 +4,7 @@ namespace Drupal\fact_drift\Drush\Commands;
 
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager;
 use Drupal\fact_drift\Entity\Finding;
 use Drupal\fact_drift\Scanner;
 use Drupal\node\NodeInterface;
@@ -23,10 +24,13 @@ final class FactDriftCommands extends DrushCommands {
    *   The scanner.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   The entity type manager.
+   * @param \Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager $extractorManager
+   *   The claim extractor plugin manager, for the labels of run summaries.
    */
   public function __construct(
     protected Scanner $scanner,
     protected EntityTypeManagerInterface $entityTypeManager,
+    protected ClaimExtractorManager $extractorManager,
   ) {
     parent::__construct();
   }
@@ -44,6 +48,7 @@ final class FactDriftCommands extends DrushCommands {
     return new static(
       $container->get('fact_drift.scanner'),
       $container->get('entity_type.manager'),
+      $container->get('fact_drift.extractor_manager'),
     );
   }
 
@@ -66,15 +71,35 @@ final class FactDriftCommands extends DrushCommands {
         throw new \InvalidArgumentException(sprintf('Node %s does not exist.', $options['node']));
       }
       $counts = $this->scanner->scanNode($node, $sourceIds);
+      $deferred = $counts['deferred_delay'] > 0 ? [(string) $counts['deferred_reason'] => 1] : [];
     }
     else {
       $limit = ($options['limit'] ?? NULL) !== NULL ? max(1, (int) $options['limit']) : NULL;
       $counts = $this->scanner->scanAll($sourceIds, $limit);
+      $deferred = $counts['deferred'];
     }
     foreach ($counts['failed'] as $id) {
       $this->logger()->warning(sprintf('Source %s could not be read; its open findings were left as they are.', $id));
     }
     $this->output()->writeln(sprintf('Claims: %d, opened: %d, closed: %d', $counts['claims'], $counts['opened'], $counts['closed']));
+    foreach ($counts['summaries'] as $id => $summary) {
+      if (!$summary) {
+        continue;
+      }
+      $pairs = [];
+      foreach ($summary as $name => $value) {
+        $pairs[] = $name . ' ' . $value;
+      }
+      $definition = $this->extractorManager->getDefinition($id, FALSE);
+      $this->output()->writeln(sprintf('%s: %s', (string) ($definition['label'] ?? $id), implode(', ', $pairs)));
+    }
+    if ($deferred) {
+      $pairs = [];
+      foreach ($deferred as $reason => $nodes) {
+        $pairs[] = sprintf('%s %d nodes', $reason, $nodes);
+      }
+      $this->output()->writeln('Deferred: ' . implode(', ', $pairs));
+    }
   }
 
   /**
@@ -93,12 +118,23 @@ final class FactDriftCommands extends DrushCommands {
     'page' => 'Page',
     'field' => 'Field',
     'type' => 'Type',
+    'extractor' => 'Extractor',
     'expected' => 'Expected',
     'found' => 'Found',
     'state' => 'State',
     'first_seen' => 'First seen',
   ])]
-  #[CLI\DefaultTableFields(fields: ['id', 'page', 'field', 'type', 'expected', 'found', 'state', 'first_seen'])]
+  #[CLI\DefaultTableFields(fields: [
+    'id',
+    'page',
+    'field',
+    'type',
+    'extractor',
+    'expected',
+    'found',
+    'state',
+    'first_seen',
+  ])]
   #[CLI\Usage(name: 'drush fact-drift:report --format=json', description: 'List open findings as JSON.')]
   public function report(array $options = ['state' => 'open', 'format' => 'table']): RowsOfFields {
     $state = (string) ($options['state'] ?? Finding::STATE_OPEN);
@@ -120,6 +156,7 @@ final class FactDriftCommands extends DrushCommands {
         'page' => $node ? $node->label() : '(deleted)',
         'field' => $finding->getFieldName(),
         'type' => $finding->getClaimType(),
+        'extractor' => $finding->getExtractor(),
         'expected' => $finding->getExpected(),
         'found' => $finding->getFound(),
         'state' => $finding->getState(),

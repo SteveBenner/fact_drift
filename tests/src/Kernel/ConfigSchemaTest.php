@@ -52,6 +52,14 @@ class ConfigSchemaTest extends KernelTestBase {
   }
 
   /**
+   * Tests that the default settings no longer carry the unused llm key.
+   */
+  public function testDefaultSettingsCarryNoLlmKey(): void {
+    $data = $this->config('fact_drift.settings')->get();
+    $this->assertArrayNotHasKey('llm', $data);
+  }
+
+  /**
    * Tests that a saved source matches the schema.
    */
   public function testSavedSourceValidates(): void {

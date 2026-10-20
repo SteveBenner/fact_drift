@@ -3,6 +3,7 @@
 namespace Drupal\fact_drift\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager;
 use Drupal\fact_drift\Entity\Finding;
 use Drupal\fact_drift\FindingRecorder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -21,15 +22,17 @@ class FindingActionController extends ControllerBase {
    *
    * @param \Drupal\fact_drift\FindingRecorder $recorder
    *   The finding recorder.
+   * @param \Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager $extractorManager
+   *   The claim extractor plugin manager.
    */
-  public function __construct(protected FindingRecorder $recorder) {
+  public function __construct(protected FindingRecorder $recorder, protected ClaimExtractorManager $extractorManager) {
   }
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container): static {
-    return new static($container->get('fact_drift.finding_recorder'));
+    return new static($container->get('fact_drift.finding_recorder'), $container->get('fact_drift.extractor_manager'));
   }
 
   /**
@@ -41,7 +44,8 @@ class FindingActionController extends ControllerBase {
    * @param \Drupal\fact_drift\Entity\Finding $fact_drift_finding
    *   The finding.
    * @param \Symfony\Component\HttpFoundation\Request $request
-   *   The request; its state and type query arguments are kept on return.
+   *   The request; its state, type and extractor query arguments are kept on
+   *   return.
    *
    * @return \Symfony\Component\HttpFoundation\RedirectResponse
    *   A redirect to the report.
@@ -62,6 +66,9 @@ class FindingActionController extends ControllerBase {
     }
     if (isset($input['type']) && is_string($input['type']) && preg_match('/^[a-z0-9_]+$/', $input['type'])) {
       $query['type'] = $input['type'];
+    }
+    if (isset($input['extractor']) && is_string($input['extractor']) && $this->extractorManager->hasDefinition($input['extractor'])) {
+      $query['extractor'] = $input['extractor'];
     }
     return $this->redirect('fact_drift.report', [], ['query' => $query]);
   }

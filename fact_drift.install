@@ -1,0 +1,48 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for Fact Drift Sentinel.
+ */
+
+use Drupal\Core\Field\BaseFieldDefinition;
+
+/**
+ * Adds the finding's extractor field and fills it from the claim type.
+ *
+ * Installs the extractor base field of the fact_drift_finding entity type, then
+ * gives every existing finding its claim type as the extractor, since the IDs
+ * of the 0.1.0 extractors equal their claim types.
+ */
+function fact_drift_update_10001(): void {
+  $manager = \Drupal::entityDefinitionUpdateManager();
+  if (!$manager->getFieldStorageDefinition('extractor', 'fact_drift_finding')) {
+    $definition = BaseFieldDefinition::create('string')
+      ->setLabel(t('Extractor'))
+      ->setDescription(t('The ID of the extractor plugin whose claim opened the finding.'))
+      ->setSetting('max_length', 64)
+      ->setDefaultValue('');
+    $manager->installFieldStorageDefinition('extractor', 'fact_drift_finding', 'fact_drift', $definition);
+  }
+  $unset = \Drupal::database()->condition('OR')
+    ->isNull('extractor')
+    ->condition('extractor', '');
+  \Drupal::database()->update('fact_drift_finding')
+    ->expression('extractor', 'claim_type')
+    ->condition($unset)
+    ->execute();
+  \Drupal::entityTypeManager()->getStorage('fact_drift_finding')->resetCache();
+}
+
+/**
+ * Removes the unused llm key from the Fact Drift Sentinel settings.
+ *
+ * The llm subtree of 0.1.0 moved to the settings of the fact_drift_ai
+ * submodule and was never read.
+ */
+function fact_drift_update_10002(): void {
+  $config = \Drupal::configFactory()->getEditable('fact_drift.settings');
+  if ($config->get('llm') !== NULL) {
+    $config->clear('llm')->save(TRUE);
+  }
+}

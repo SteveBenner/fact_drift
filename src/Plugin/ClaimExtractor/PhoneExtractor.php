@@ -18,8 +18,9 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 #[ClaimExtractor(
   id: 'phone',
-  label: new TranslatableMarkup('Phone'),
+  label: new TranslatableMarkup('Phone patterns'),
   claim_type: 'phone',
+  claim_label: new TranslatableMarkup('Phone'),
 )]
 class PhoneExtractor extends PluginBase implements ClaimExtractorInterface, ContainerFactoryPluginInterface {
 

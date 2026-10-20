@@ -1,0 +1,44 @@
+.fact-drift-ai-limits {
+  container-type: inline-size;
+}
+
+.fact-drift-ai-limits .fact-drift-ai-limits__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1em;
+}
+
+@container (max-width: 59.999em) {
+  .fact-drift-ai-limits .fact-drift-ai-limits__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 29.999em) {
+  .fact-drift-ai-limits .fact-drift-ai-limits__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fact-drift-ai-limits .fact-drift-ai-limits__grid .form-item,
+.fact-drift-ai-suffixed {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: start;
+  align-items: baseline;
+  column-gap: 0.5em;
+}
+
+.fact-drift-ai-limits .fact-drift-ai-limits__grid .form-item {
+  margin-block: 0;
+}
+
+.fact-drift-ai-limits .fact-drift-ai-limits__grid .form-item > :is(label, .description, .form-item__description),
+.fact-drift-ai-suffixed > :is(label, .description, .form-item__description) {
+  flex: 0 0 100%;
+}
+
+.fact-drift-ai-limits .fact-drift-ai-limits__grid input[type="number"],
+.fact-drift-ai-suffixed input[type="number"] {
+  width: 8em;
+}

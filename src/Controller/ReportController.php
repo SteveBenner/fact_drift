@@ -11,6 +11,7 @@ use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Url;
 use Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager;
+use Drupal\fact_drift\ClaimExtractor\ContextualClaimExtractorInterface;
 use Drupal\fact_drift\Entity\Finding;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -76,7 +77,8 @@ class ReportController extends ControllerBase {
    * Builds the report.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
-   *   The request; its state and type query arguments filter the table.
+   *   The request; its state, type and extractor query arguments filter the
+   *   table.
    *
    * @return array<string, mixed>
    *   A render array using the fact_drift_report theme hook.
@@ -86,6 +88,8 @@ class ReportController extends ControllerBase {
     $state = isset($query['state']) && is_string($query['state']) && in_array($query['state'], self::STATES, TRUE) ? $query['state'] : Finding::STATE_OPEN;
     $typeLabels = $this->claimTypeLabels();
     $type = isset($query['type']) && is_string($query['type']) && isset($typeLabels[$query['type']]) ? $query['type'] : NULL;
+    $extractorLabels = $this->extractorLabels();
+    $extractor = isset($query['extractor']) && is_string($query['extractor']) && isset($extractorLabels[$query['extractor']]) ? $query['extractor'] : NULL;
     $pastFirstPage = isset($query['page']) && is_scalar($query['page']) && (int) $query['page'] > 0;
 
     $metadata = new CacheableMetadata();
@@ -95,6 +99,7 @@ class ReportController extends ControllerBase {
       'timezone',
       'url.query_args:state',
       'url.query_args:type',
+      'url.query_args:extractor',
       'url.query_args.pagers:0',
     ]);
     $metadata->setCacheMaxAge(Cache::PERMANENT);
@@ -103,8 +108,8 @@ class ReportController extends ControllerBase {
       '#theme' => 'fact_drift_report',
       '#attributes' => ['class' => ['fact-drift-report']],
       '#summary' => $this->summary($typeLabels, $metadata),
-      '#filters' => $this->filters($state, $type, $typeLabels),
-      '#table' => $this->table($state, $type, $typeLabels, $pastFirstPage, $metadata),
+      '#filters' => $this->filters($state, $type, $extractor, $typeLabels, $extractorLabels),
+      '#table' => $this->table($state, $type, $extractor, $typeLabels, $extractorLabels, $pastFirstPage, $metadata),
       '#attached' => ['library' => ['fact_drift/report']],
     ];
     $metadata->applyTo($build);
@@ -246,29 +251,33 @@ class ReportController extends ControllerBase {
   }
 
   /**
-   * Builds the filters: the Findings heading and two inline link lists.
+   * Builds the filters: the Findings heading and the inline link lists.
    *
    * @param string $state
    *   The active state.
    * @param string|null $type
    *   The active claim type, or NULL for all.
+   * @param string|null $extractor
+   *   The active extractor ID, or NULL for all.
    * @param array<string, string> $typeLabels
    *   The claim type labels keyed by claim type.
+   * @param array<string, string> $extractorLabels
+   *   The extractor labels keyed by extractor plugin ID.
    *
    * @return array<string, mixed>
    *   A render array.
    */
-  protected function filters(string $state, ?string $type, array $typeLabels): array {
+  protected function filters(string $state, ?string $type, ?string $extractor, array $typeLabels, array $extractorLabels): array {
     $stateLabels = $this->stateLabels();
     $stateLinks = [];
     foreach (self::STATES as $candidate) {
-      $stateLinks[$candidate] = $this->filterLink($stateLabels[$candidate] ?? $candidate, $candidate, $type, $candidate === $state);
+      $stateLinks[$candidate] = $this->filterLink($stateLabels[$candidate] ?? $candidate, $candidate, $type, $extractor, $candidate === $state);
     }
-    $typeLinks = ['all' => $this->filterLink((string) $this->t('All'), $state, NULL, $type === NULL)];
+    $typeLinks = ['all' => $this->filterLink((string) $this->t('All'), $state, NULL, $extractor, $type === NULL)];
     foreach ($typeLabels as $candidate => $label) {
-      $typeLinks[$candidate] = $this->filterLink($label, $state, $candidate, $candidate === $type);
+      $typeLinks[$candidate] = $this->filterLink($label, $state, $candidate, $extractor, $candidate === $type);
     }
-    return [
+    $filters = [
       'heading' => [
         '#type' => 'html_tag',
         '#tag' => 'h2',
@@ -297,6 +306,22 @@ class ReportController extends ControllerBase {
         ],
       ],
     ];
+    if ($this->hasContextualExtractor()) {
+      $extractorLinks = ['all' => $this->filterLink((string) $this->t('All'), $state, $type, NULL, $extractor === NULL)];
+      foreach ($extractorLabels as $candidate => $label) {
+        $extractorLinks[$candidate] = $this->filterLink($label, $state, $type, $candidate, $candidate === $extractor);
+      }
+      $filters['nav']['extractor'] = [
+        '#type' => 'container',
+        'links' => [
+          '#theme' => 'links',
+          '#heading' => ['text' => $this->t('Extractor'), 'level' => 'h3'],
+          '#links' => $extractorLinks,
+          '#attributes' => ['class' => ['inline']],
+        ],
+      ];
+    }
+    return $filters;
   }
 
   /**
@@ -308,16 +333,18 @@ class ReportController extends ControllerBase {
    *   The state the link selects.
    * @param string|null $type
    *   The claim type the link selects, or NULL for all.
+   * @param string|null $extractor
+   *   The extractor ID the link selects, or NULL for all.
    * @param bool $active
    *   Whether this is the active filter.
    *
    * @return array<string, mixed>
    *   A link definition for the links theme hook.
    */
-  protected function filterLink(string $title, string $state, ?string $type, bool $active): array {
+  protected function filterLink(string $title, string $state, ?string $type, ?string $extractor, bool $active): array {
     $link = [
       'title' => $title,
-      'url' => Url::fromRoute('fact_drift.report', [], ['query' => $this->filterQuery($state, $type)]),
+      'url' => Url::fromRoute('fact_drift.report', [], ['query' => $this->filterQuery($state, $type, $extractor)]),
       'attributes' => [],
     ];
     if ($active) {
@@ -338,14 +365,19 @@ class ReportController extends ControllerBase {
    *   The state.
    * @param string|null $type
    *   The claim type, or NULL for all.
+   * @param string|null $extractor
+   *   (optional) The extractor ID, or NULL for all.
    *
    * @return array<string, string>
    *   The query arguments.
    */
-  protected function filterQuery(string $state, ?string $type): array {
+  protected function filterQuery(string $state, ?string $type, ?string $extractor = NULL): array {
     $query = ['state' => $state];
     if ($type !== NULL) {
       $query['type'] = $type;
+    }
+    if ($extractor !== NULL) {
+      $query['extractor'] = $extractor;
     }
     return $query;
   }
@@ -357,8 +389,12 @@ class ReportController extends ControllerBase {
    *   The state to list.
    * @param string|null $type
    *   The claim type to list, or NULL for all.
+   * @param string|null $extractor
+   *   The extractor ID to list, or NULL for all.
    * @param array<string, string> $typeLabels
    *   The claim type labels keyed by claim type.
+   * @param array<string, string> $extractorLabels
+   *   The extractor labels keyed by extractor plugin ID.
    * @param bool $pastFirstPage
    *   Whether a page after the first was requested.
    * @param \Drupal\Core\Cache\CacheableMetadata $metadata
@@ -367,7 +403,7 @@ class ReportController extends ControllerBase {
    * @return array<string, mixed>
    *   A render array.
    */
-  protected function table(string $state, ?string $type, array $typeLabels, bool $pastFirstPage, CacheableMetadata $metadata): array {
+  protected function table(string $state, ?string $type, ?string $extractor, array $typeLabels, array $extractorLabels, bool $pastFirstPage, CacheableMetadata $metadata): array {
     $storage = $this->entityTypeManager->getStorage('fact_drift_finding');
     $query = $storage->getQuery()
       ->accessCheck(TRUE)
@@ -378,10 +414,13 @@ class ReportController extends ControllerBase {
     if ($type !== NULL) {
       $query->condition('claim_type', $type);
     }
+    if ($extractor !== NULL) {
+      $query->condition('extractor', $extractor);
+    }
     $rows = [];
     foreach ($storage->loadMultiple($query->execute()) as $finding) {
       assert($finding instanceof Finding);
-      $rows[] = $this->row($finding, $state, $type, $typeLabels, $metadata);
+      $rows[] = $this->row($finding, $state, $type, $extractor, $typeLabels, $metadata);
     }
     $sourceStorage = $this->entityTypeManager->getStorage('fact_drift_source');
     $metadata->addCacheTags($sourceStorage->getEntityType()->getListCacheTags());
@@ -390,7 +429,7 @@ class ReportController extends ControllerBase {
     $header = [
       $this->t('Page'),
       ['data' => $this->t('Field'), 'class' => ['priority-low']],
-      ['data' => $this->t('Claim type'), 'class' => ['priority-medium']],
+      $this->t('Claim type'),
       $this->t('Expected'),
       $this->t('Found'),
       $this->t('Snippet'),
@@ -433,7 +472,7 @@ class ReportController extends ControllerBase {
           ],
           '#header' => $header,
           '#rows' => $rows,
-          '#empty' => $this->emptyText($state, $stateLabel, $type, $typeLabels, $pastFirstPage),
+          '#empty' => $this->emptyText($state, $stateLabel, $type, $extractor, $typeLabels, $extractorLabels, $pastFirstPage),
         ],
       ],
       'pager' => [
@@ -452,6 +491,8 @@ class ReportController extends ControllerBase {
    *   The active state filter.
    * @param string|null $type
    *   The active claim type filter.
+   * @param string|null $extractor
+   *   The active extractor filter.
    * @param array<string, string> $typeLabels
    *   The claim type labels keyed by claim type.
    * @param \Drupal\Core\Cache\CacheableMetadata $metadata
@@ -460,7 +501,7 @@ class ReportController extends ControllerBase {
    * @return array<int, mixed>
    *   The row cells.
    */
-  protected function row(Finding $finding, string $state, ?string $type, array $typeLabels, CacheableMetadata $metadata): array {
+  protected function row(Finding $finding, string $state, ?string $type, ?string $extractor, array $typeLabels, CacheableMetadata $metadata): array {
     $node = $finding->getNode();
     if ($node) {
       $metadata->addCacheableDependency($node);
@@ -495,7 +536,7 @@ class ReportController extends ControllerBase {
                 'name' => $this->t('finding @id on @page', ['@id' => $finding->id(), '@page' => $label]),
               ],
             ],
-            '#url' => Url::fromRoute('fact_drift.finding_dismiss', ['fact_drift_finding' => $finding->id()], ['query' => $this->filterQuery($state, $type)]),
+            '#url' => Url::fromRoute('fact_drift.finding_dismiss', ['fact_drift_finding' => $finding->id()], ['query' => $this->filterQuery($state, $type, $extractor)]),
             '#attributes' => ['class' => ['button', 'button--small']],
           ],
           'class' => ['fact-drift-report__ops'],
@@ -508,9 +549,9 @@ class ReportController extends ControllerBase {
     return [
       $page,
       ['data' => $fieldCell, 'class' => ['fact-drift-report__field']],
-      ['data' => ['#plain_text' => (string) ($typeLabels[$claimType] ?? $claimType)]],
-      ['data' => ['#plain_text' => $finding->getExpected()]],
-      ['data' => ['#plain_text' => $finding->getFound()]],
+      ['data' => $this->claimTypeCell((string) ($typeLabels[$claimType] ?? $claimType), $finding->getExtractor())],
+      ['data' => $this->valueCell($finding->getExpected(), $claimType)],
+      ['data' => $this->valueCell($finding->getFound(), $claimType)],
       [
         'data' => $this->snippetCell($finding->getSnippet(), (int) $finding->id()),
         'class' => ['fact-drift-report__snippet-cell'],
@@ -520,6 +561,56 @@ class ReportController extends ControllerBase {
         'class' => ['fact-drift-report__seen'],
       ],
       $operations,
+    ];
+  }
+
+  /**
+   * Builds an Expected or Found cell.
+   *
+   * @param string $value
+   *   The normalised value.
+   * @param string $claimType
+   *   The claim type of the finding.
+   *
+   * @return array<string, mixed>
+   *   A render array. An hours value is split on "; " into segments that
+   *   never wrap inside themselves; any other value is plain text.
+   */
+  protected function valueCell(string $value, string $claimType): array {
+    if ($claimType !== 'hours') {
+      return ['#plain_text' => $value];
+    }
+    return [
+      '#type' => 'inline_template',
+      '#template' => '{% for segment in segments %}<span class="fact-drift-report__segment">{{ segment }}</span>{% if not loop.last %}; {% endif %}{% endfor %}',
+      '#context' => ['segments' => explode('; ', $value)],
+    ];
+  }
+
+  /**
+   * Builds the claim type cell: the type label and the extractor's marker.
+   *
+   * @param string $label
+   *   The claim type label.
+   * @param string $extractorId
+   *   The ID of the extractor that opened the finding.
+   *
+   * @return array<string, mixed>
+   *   A render array. The marker shows only for an extractor whose definition
+   *   has one, as visible text with a visually hidden name for the extractor.
+   */
+  protected function claimTypeCell(string $label, string $extractorId): array {
+    $definition = $extractorId === '' ? NULL : $this->extractorManager->getDefinition($extractorId, FALSE);
+    $marker = $definition['marker'] ?? NULL;
+    $context = ['label' => $label, 'marker' => '', 'name' => ''];
+    if ($marker !== NULL && (string) $marker !== '') {
+      $context['marker'] = $marker;
+      $context['name'] = $this->t('found by the @extractor', ['@extractor' => (string) $definition['label']]);
+    }
+    return [
+      '#type' => 'inline_template',
+      '#template' => '<span class="fact-drift-report__type">{{ label }}{% if marker %}<span class="fact-drift-report__marker">{{ marker }}<span class="visually-hidden"> ({{ name }})</span></span>{% endif %}</span>',
+      '#context' => $context,
     ];
   }
 
@@ -595,15 +686,19 @@ class ReportController extends ControllerBase {
    *   The state's label.
    * @param string|null $type
    *   The active claim type filter.
+   * @param string|null $extractor
+   *   The active extractor filter.
    * @param array<string, string> $typeLabels
    *   The claim type labels keyed by claim type.
+   * @param array<string, string> $extractorLabels
+   *   The extractor labels keyed by extractor plugin ID.
    * @param bool $pastFirstPage
    *   Whether a page after the first was requested.
    *
    * @return array<string, mixed>|\Drupal\Core\StringTranslation\TranslatableMarkup
    *   The empty text.
    */
-  protected function emptyText(string $state, string $stateLabel, ?string $type, array $typeLabels, bool $pastFirstPage) {
+  protected function emptyText(string $state, string $stateLabel, ?string $type, ?string $extractor, array $typeLabels, array $extractorLabels, bool $pastFirstPage) {
     $enabled = $this->entityTypeManager->getStorage('fact_drift_source')->getQuery()
       ->accessCheck(FALSE)
       ->condition('status', TRUE)
@@ -622,13 +717,18 @@ class ReportController extends ControllerBase {
       return $empty;
     }
     $lower = mb_strtolower($stateLabel);
-    if ($type !== NULL || $pastFirstPage) {
-      $message = $type !== NULL
-        ? $this->t('No @state findings of claim type @type.', [
-          '@state' => $lower,
-          '@type' => $typeLabels[$type] ?? $type,
-        ])
-        : $this->t('No @state findings on this page.', ['@state' => $lower]);
+    if ($type !== NULL || $extractor !== NULL || $pastFirstPage) {
+      $arguments = [
+        '@state' => $lower,
+        '@type' => $type === NULL ? '' : ($typeLabels[$type] ?? $type),
+        '@extractor' => $extractor === NULL ? '' : ($extractorLabels[$extractor] ?? $extractor),
+      ];
+      $message = match (TRUE) {
+        $type !== NULL && $extractor !== NULL => $this->t('No @state findings of claim type @type found by @extractor.', $arguments),
+        $type !== NULL => $this->t('No @state findings of claim type @type.', $arguments),
+        $extractor !== NULL => $this->t('No @state findings found by @extractor.', $arguments),
+        default => $this->t('No @state findings on this page.', $arguments),
+      };
       return [
         'message' => ['#plain_text' => (string) $message],
         'link' => [
@@ -655,9 +755,40 @@ class ReportController extends ControllerBase {
   protected function claimTypeLabels(): array {
     $labels = [];
     foreach ($this->extractorManager->getDefinitions() as $definition) {
-      $labels[$definition['claim_type']] = (string) $definition['label'];
+      if (($definition['claim_type'] ?? NULL) !== NULL) {
+        $labels[$definition['claim_type']] = (string) ($definition['claim_label'] ?? $definition['label']);
+      }
     }
     return $labels;
+  }
+
+  /**
+   * Lists every extractor plugin with its label.
+   *
+   * @return array<string, string>
+   *   The extractor labels keyed by plugin ID, in weight order.
+   */
+  protected function extractorLabels(): array {
+    $labels = [];
+    foreach ($this->extractorManager->getDefinitions() as $id => $definition) {
+      $labels[(string) $id] = (string) $definition['label'];
+    }
+    return $labels;
+  }
+
+  /**
+   * Tells whether any extractor plugin is contextual.
+   *
+   * @return bool
+   *   TRUE when the extractor filter should be offered.
+   */
+  protected function hasContextualExtractor(): bool {
+    foreach ($this->extractorManager->getDefinitions() as $definition) {
+      if (is_subclass_of($definition['class'], ContextualClaimExtractorInterface::class)) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
 }

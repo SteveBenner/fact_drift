@@ -1,0 +1,58 @@
+fact_drift_ai.settings:
+  type: config_object
+  label: 'Fact Drift Sentinel AI extractor settings'
+  mapping:
+    enabled:
+      type: boolean
+      label: 'Enable the AI extractor'
+    provider:
+      type: string
+      label: 'AI provider plugin ID'
+    model:
+      type: string
+      label: 'Model ID of the provider'
+    mode:
+      type: string
+      label: 'When to ask the model'
+      constraints:
+        Choice:
+          - fallback
+          - alongside
+    prefilter:
+      type: boolean
+      label: 'Send only passages with a phone or hours cue'
+    max_chars:
+      type: integer
+      label: 'Largest passage window in characters'
+    allowlist:
+      type: sequence
+      label: 'Allowed fields'
+      sequence:
+        type: mapping
+        label: 'Allowed field'
+        mapping:
+          bundle:
+            type: string
+            label: 'Content type'
+          field:
+            type: string
+            label: 'Field name'
+    max_calls_per_run:
+      type: integer
+      label: 'Most calls per run'
+    min_interval_ms:
+      type: integer
+      label: 'Least milliseconds between calls'
+    timeout_seconds:
+      type: integer
+      label: 'Seconds before a call times out'
+    max_retries:
+      type: integer
+      label: 'Most retries of a call'
+    reasoning:
+      type: string
+      label: 'Reasoning of the model'
+      constraints:
+        Choice:
+          - none
+          - provider_default

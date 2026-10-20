@@ -103,6 +103,68 @@ class ReportAccessTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('9095550123');
     $this->assertSession()->pageTextContains('Riverside Family Clinic: call 909-555-0123 today.');
     $this->assertSession()->elementNotExists('css', '.fact-drift-report__ops a');
+    $this->assertSession()->elementNotExists('xpath', '//th[contains(@class, "priority") and normalize-space(.) = "Claim type"]');
+    $this->assertSession()->elementExists('xpath', '//th[normalize-space(.) = "Field"][contains(@class, "priority-low")]');
+    $this->assertSession()->responseContains('fact-drift-report.js');
+  }
+
+  /**
+   * Tests that an hours value breaks only between its segments.
+   */
+  public function testHoursValuesAreSplitIntoSegments(): void {
+    $this->createScannedPage('<p>Riverside Family Clinic hours: Mon-Fri 9am-5pm; Sat 9am-12pm.</p>');
+    $this->drupalLogin($this->drupalCreateUser(['view fact drift findings']));
+    $this->drupalGet('/admin/reports/fact-drift');
+    $segments = array_map(
+      static fn ($element): string => $element->getText(),
+      $this->xpath('//td//span[contains(@class, "fact-drift-report__segment")]'),
+    );
+    $this->assertSame([
+      'Mon-Fri 08:00-17:00',
+      'Sat 09:00-12:00',
+      'Mon-Fri 09:00-17:00',
+      'Sat 09:00-12:00',
+    ], $segments);
+  }
+
+  /**
+   * Tests that a single-segment hours value is still kept on one line.
+   */
+  public function testSingleSegmentHoursValueIsKeptWhole(): void {
+    $this->createScannedPage('<p>Riverside Family Clinic hours: Mon-Fri 9am-5pm.</p>');
+    $this->drupalLogin($this->drupalCreateUser(['view fact drift findings']));
+    $this->drupalGet('/admin/reports/fact-drift');
+    $segments = array_map(
+      static fn ($element): string => $element->getText(),
+      $this->xpath('//td//span[contains(@class, "fact-drift-report__segment")]'),
+    );
+    $this->assertContains('Mon-Fri 09:00-17:00', $segments);
+  }
+
+  /**
+   * Tests that a phone value is not split into segments.
+   */
+  public function testPhoneValuesAreNotSplit(): void {
+    $this->createScannedPage('<p>Riverside Family Clinic: call 909-555-0123 today.</p>');
+    $this->drupalLogin($this->drupalCreateUser(['view fact drift findings']));
+    $this->drupalGet('/admin/reports/fact-drift');
+    $this->assertSession()->elementNotExists('css', '.fact-drift-report__segment');
+  }
+
+  /**
+   * Tests that without a contextual extractor there is no extractor filter.
+   */
+  public function testNoExtractorFilterOrMarkerWithPlainExtractorsOnly(): void {
+    $this->createScannedPage('<p>Riverside Family Clinic: call 909-555-0123 today.</p>');
+    $this->drupalLogin($this->drupalCreateUser(['view fact drift findings']));
+    $this->drupalGet('/admin/reports/fact-drift');
+    $this->assertSession()->statusCodeEquals(200);
+    $headings = array_map(static fn ($element): string => $element->getText(), $this->xpath('//nav[@aria-label="Filter findings"]//h3'));
+    $this->assertSame(['State', 'Claim type'], $headings);
+    $this->assertSession()->elementExists('css', '.fact-drift-report__type');
+    $this->assertSession()->elementNotExists('css', '.fact-drift-report__marker');
+    $this->drupalGet('/admin/reports/fact-drift', ['query' => ['extractor' => 'phone']]);
+    $this->assertSession()->pageTextContains('Contact us');
   }
 
   /**

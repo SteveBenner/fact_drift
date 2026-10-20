@@ -1,0 +1,25 @@
+services:
+  logger.channel.fact_drift_ai:
+    parent: logger.channel_base
+    arguments: [fact_drift_ai]
+  cache.fact_drift_llm:
+    class: Drupal\Core\Cache\CacheBackendInterface
+    tags:
+      - { name: cache.bin }
+    factory: ['@cache_factory', 'get']
+    arguments: [fact_drift_llm]
+  fact_drift_ai.prompt:
+    class: Drupal\fact_drift_ai\Prompt
+  fact_drift_ai.prefilter:
+    class: Drupal\fact_drift_ai\Prefilter
+  fact_drift_ai.response_validator:
+    class: Drupal\fact_drift_ai\ResponseValidator
+    arguments: ['@fact_drift.comparator']
+  fact_drift_ai.call_guard:
+    class: Drupal\fact_drift_ai\CallGuard
+    arguments: ['@ai.provider', '@config.factory', '@logger.channel.fact_drift_ai']
+    tags:
+      - { name: needs_destruction }
+  Drupal\fact_drift_ai\Hook\FactDriftAiHooks:
+    class: Drupal\fact_drift_ai\Hook\FactDriftAiHooks
+    arguments: ['@config.factory', '@fact_drift_ai.call_guard']

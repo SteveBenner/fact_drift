@@ -1,0 +1,10 @@
+fact_drift.settings_tab:
+  title: Settings
+  route_name: fact_drift.settings
+  base_route: fact_drift.settings
+  weight: 0
+fact_drift_ai.settings_tab:
+  title: AI extractor
+  route_name: fact_drift_ai.settings
+  base_route: fact_drift.settings
+  weight: 10

@@ -5,6 +5,7 @@ namespace Drupal\fact_drift\Plugin\QueueWorker;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\Attribute\QueueWorker;
+use Drupal\Core\Queue\DelayedRequeueException;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\fact_drift\Scanner;
@@ -76,7 +77,10 @@ class RescanWorker extends QueueWorkerBase implements ContainerFactoryPluginInte
     if (!$node instanceof NodeInterface) {
       return;
     }
-    $this->scanner->scanNode($node);
+    $result = $this->scanner->scanNode($node);
+    if ($result['deferred_delay'] > 0) {
+      throw new DelayedRequeueException($result['deferred_delay'], (string) $result['deferred_reason']);
+    }
   }
 
 }

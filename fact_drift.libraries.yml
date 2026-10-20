@@ -2,3 +2,9 @@ report:
   css:
     layout:
       css/fact-drift-report.css: {}
+  js:
+    js/fact-drift-report.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - core/jquery

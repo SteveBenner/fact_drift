@@ -83,7 +83,9 @@ class SettingsForm extends ConfigFormBase {
     }
     $extractors = [];
     foreach ($this->extractorManager->getDefinitions() as $id => $definition) {
-      $extractors[$id] = $definition['label'];
+      if (($definition['claim_type'] ?? NULL) !== NULL) {
+        $extractors[$id] = $definition['label'];
+      }
     }
 
     $form['content_types'] = [
@@ -126,6 +128,13 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Forces deterministic extraction only. Can be overridden per environment in settings.php.'),
       '#config_target' => new ConfigTarget('fact_drift.settings', 'kill_switch', NULL, static fn ($value): bool => (bool) $value),
     ];
+    $active = $this->configFactory()->get('fact_drift.settings');
+    if ($active->hasOverrides('kill_switch')) {
+      unset($form['kill_switch']['#config_target']);
+      $form['kill_switch']['#default_value'] = (bool) $active->get('kill_switch');
+      $form['kill_switch']['#disabled'] = TRUE;
+      $form['kill_switch']['#description'] = $this->t('Forces deterministic extraction only. Can be overridden per environment in settings.php.') . ' ' . $this->t('This value is overridden in settings.php for this environment.');
+    }
 
     return $form;
   }

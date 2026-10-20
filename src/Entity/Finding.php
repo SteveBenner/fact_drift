@@ -62,6 +62,12 @@ class Finding extends ContentEntityBase {
       ->setRequired(TRUE)
       ->setSetting('max_length', 64);
 
+    $fields['extractor'] = BaseFieldDefinition::create('string')
+      ->setLabel(t('Extractor'))
+      ->setDescription(t('The ID of the extractor plugin whose claim opened the finding.'))
+      ->setSetting('max_length', 64)
+      ->setDefaultValue('');
+
     $fields['fact_key'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Fact key'))
       ->setDescription(t("The fact's key within its source."))
@@ -161,6 +167,16 @@ class Finding extends ContentEntityBase {
    */
   public function getClaimType(): string {
     return (string) $this->get('claim_type')->value;
+  }
+
+  /**
+   * Gets the ID of the extractor plugin whose claim opened the finding.
+   *
+   * @return string
+   *   The extractor plugin ID, or an empty string when none is recorded.
+   */
+  public function getExtractor(): string {
+    return (string) $this->get('extractor')->value;
   }
 
   /**

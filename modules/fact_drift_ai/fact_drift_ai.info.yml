@@ -1,0 +1,10 @@
+name: Fact Drift Sentinel AI extractor
+type: module
+description: Finds facts in prose that the pattern extractors cannot read, by asking a model through the AI module, within strict limits.
+package: Content
+core_version_requirement: ^10.6 || ^11
+php: 8.1
+dependencies:
+  - fact_drift:fact_drift
+  - ai:ai
+configure: fact_drift_ai.settings

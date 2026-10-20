@@ -1,9 +1,15 @@
 parameters:
   level: 6
+  fileExtensions:
+    - php
+    - module
+    - install
   paths:
     - src
     - fact_drift.module
+    - fact_drift.install
     - tests
+    - modules
   ignoreErrors:
     -
       message: '#Attribute class Drupal\\Core\\Hook\\Attribute\\(Hook|LegacyHook) does not exist#'

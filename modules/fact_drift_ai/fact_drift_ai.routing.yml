@@ -1,0 +1,7 @@
+fact_drift_ai.settings:
+  path: '/admin/config/content/fact-drift/ai'
+  defaults:
+    _form: '\Drupal\fact_drift_ai\Form\AiSettingsForm'
+    _title: 'AI extractor'
+  requirements:
+    _permission: 'administer fact drift'

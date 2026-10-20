@@ -22,6 +22,9 @@ final class Claim {
    *   The length of the claim in characters.
    * @param string $snippet
    *   Up to 300 characters of surrounding plain text.
+   * @param string $extractor
+   *   (optional) The ID of the extractor plugin that produced the claim; the
+   *   scanner stamps it, so extractors need not set it.
    */
   public function __construct(
     public readonly string $claimType,
@@ -30,7 +33,21 @@ final class Claim {
     public readonly int $offset,
     public readonly int $length,
     public readonly string $snippet,
+    public readonly string $extractor = '',
   ) {
+  }
+
+  /**
+   * Returns a copy of the claim attributed to an extractor.
+   *
+   * @param string $extractor
+   *   The ID of the extractor plugin.
+   *
+   * @return static
+   *   A claim with every other value unchanged.
+   */
+  public function withExtractor(string $extractor): static {
+    return new static($this->claimType, $this->raw, $this->value, $this->offset, $this->length, $this->snippet, $extractor);
   }
 
 }

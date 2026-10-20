@@ -36,7 +36,7 @@ jobs:
           composer config --no-plugins allow-plugins.phpstan/extension-installer true
           composer remove drupal/core-recommended --no-update --no-interaction
           rm -f composer.lock
-          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} 'drupal/ai:^1.5' 'drupal/ai_provider_ollama:^1.2@RC' drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
       - name: Check the coding standard
         run: drupal/vendor/bin/phpcs --standard=fact_drift/phpcs.xml.dist fact_drift
 
@@ -70,7 +70,7 @@ jobs:
           composer config --no-plugins allow-plugins.phpstan/extension-installer true
           composer remove drupal/core-recommended --no-update --no-interaction
           rm -f composer.lock
-          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} 'drupal/ai:^1.5' 'drupal/ai_provider_ollama:^1.2@RC' drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
       - name: Analyse the module
         working-directory: drupal/web/modules/contrib/fact_drift
         run: $GITHUB_WORKSPACE/drupal/vendor/bin/phpstan analyse -c phpstan.neon --no-progress
@@ -109,7 +109,7 @@ jobs:
           composer config --no-plugins allow-plugins.phpstan/extension-installer true
           composer remove drupal/core-recommended --no-update --no-interaction
           rm -f composer.lock
-          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
+          composer require stevebenner/fact_drift:@dev drupal/core:${{ matrix.drupal }} drupal/core-dev:${{ matrix.drupal }} 'drupal/ai:^1.5' 'drupal/ai_provider_ollama:^1.2@RC' drush/drush mglaman/phpstan-drupal phpstan/phpstan-deprecation-rules phpstan/extension-installer --with-all-dependencies --no-interaction
       - name: Prepare the test directories
         working-directory: drupal
         run: |

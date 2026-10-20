@@ -207,6 +207,24 @@ class ScannerTest extends KernelTestBase {
   }
 
   /**
+   * Tests that base fields such as the revision log are never scanned.
+   */
+  public function testBaseFieldsAreNotScanned(): void {
+    $node = Node::create([
+      'type' => 'page',
+      'title' => 'Riverside Family Clinic 909-555-0123',
+      'status' => 1,
+      'body' => ['value' => '<p>Nothing to see.</p>', 'format' => 'plain_text'],
+      'revision_log' => 'Riverside Family Clinic: 909-555-0123.',
+    ]);
+    $node->save();
+    $result = $this->scanner->scanNode($node);
+    $this->assertSame(0, $result['claims']);
+    $this->assertSame(0, $result['opened']);
+    $this->assertSame([], $this->openFindings());
+  }
+
+  /**
    * Tests that an unpublished node is not scanned.
    */
   public function testUnpublishedNodeIsSkipped(): void {

@@ -1,0 +1,22 @@
+<?php
+
+/**
+ * @file
+ * Procedural hook bridges for Drupal 10.6.
+ *
+ * Drupal 11.1 and later use the hook class.
+ */
+
+use Drupal\Core\Hook\Attribute\LegacyHook;
+use Drupal\fact_drift_ai\Hook\FactDriftAiHooks;
+
+/**
+ * Implements hook_ai_provider_info_alter().
+ *
+ * @param array<string, array<string, mixed>> $definitions
+ *   The provider plugin definitions.
+ */
+#[LegacyHook]
+function fact_drift_ai_ai_provider_info_alter(array &$definitions): void {
+  \Drupal::service(FactDriftAiHooks::class)->aiProviderInfoAlter($definitions);
+}

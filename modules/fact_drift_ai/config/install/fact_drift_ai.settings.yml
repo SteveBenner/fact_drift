@@ -1,0 +1,12 @@
+enabled: false
+provider: ''
+model: ''
+mode: fallback
+prefilter: true
+max_chars: 4000
+allowlist: []
+max_calls_per_run: 20
+min_interval_ms: 1000
+timeout_seconds: 10
+max_retries: 2
+reasoning: none

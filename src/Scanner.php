@@ -12,9 +12,11 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\fact_drift\ClaimExtractor\ClaimExtractorInterface;
 use Drupal\fact_drift\ClaimExtractor\ClaimExtractorManager;
+use Drupal\fact_drift\ClaimExtractor\ContextualClaimExtractorInterface;
 use Drupal\fact_drift\Entity\Source;
 use Drupal\fact_drift\FactSource\FactSourceInterface;
 use Drupal\fact_drift\FactSource\FactSourceManager;
+use Drupal\fact_drift\Value\ExtractionContext;
 use Drupal\fact_drift\Value\Mismatch;
 use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
@@ -148,16 +150,25 @@ class Scanner {
    * @param string[]|null $sourceIds
    *   Only use these sources, or NULL for every enabled source.
    *
-   * @return array{claims: int, opened: int, closed: int, failed: array<int, string>}
-   *   The counts and the IDs of sources that could not be read. All counts are
-   *   zero when the node is unpublished or its type is not configured.
+   * @return array{claims: int, opened: int, closed: int, deferred_delay: int, deferred_reason: string|null, failed: array<int, string>, summaries: array<string, array<string, int>>}
+   *   The counts, the largest deferral asked for by a contextual extractor in
+   *   seconds (0 when none) with its reason, the IDs of sources that could not
+   *   be read, and the run summary of every active contextual extractor keyed
+   *   by extractor ID. All counts are zero when the node is unpublished or its
+   *   type is not configured.
    */
   public function scanNode(NodeInterface $node, ?array $sourceIds = NULL): array {
     if (!$this->isScannable($node)) {
-      return $this->zeros() + ['failed' => []];
+      return $this->zeros() + [
+        'deferred_delay' => 0,
+        'deferred_reason' => NULL,
+        'failed' => [],
+        'summaries' => $this->summaries(),
+      ];
     }
     $loaded = $this->loadFacts($sourceIds);
-    return $this->scanWithFacts($node, $loaded['facts'], $loaded['loaded']) + ['failed' => $loaded['failed']];
+    $result = $this->scanWithFacts($node, $loaded['facts'], $loaded['loaded']);
+    return $result + ['failed' => $loaded['failed'], 'summaries' => $this->summaries()];
   }
 
   /**
@@ -168,14 +179,17 @@ class Scanner {
    * @param int|null $limit
    *   The maximum number of nodes to scan, or NULL for all.
    *
-   * @return array{claims: int, opened: int, closed: int, failed: array<int, string>}
-   *   The totals and the IDs of sources that could not be read.
+   * @return array{claims: int, opened: int, closed: int, failed: array<int, string>, summaries: array<string, array<string, int>>, deferred: array<string, int>}
+   *   The totals, the IDs of sources that could not be read, the run summary
+   *   of every active contextual extractor keyed by extractor ID, and the
+   *   number of nodes with deferred work keyed by deferral reason.
    */
   public function scanAll(?array $sourceIds = NULL, ?int $limit = NULL): array {
     $totals = $this->zeros();
+    $deferred = [];
     $types = $this->settings()->get('content_types') ?? [];
     if (!$types) {
-      return $totals + ['failed' => []];
+      return $totals + ['failed' => [], 'summaries' => $this->summaries(), 'deferred' => $deferred];
     }
     $loaded = $this->loadFacts($sourceIds);
     $storage = $this->nodeStorage();
@@ -191,13 +205,17 @@ class Scanner {
       foreach ($storage->loadMultiple($chunk) as $node) {
         assert($node instanceof NodeInterface);
         $counts = $this->scanWithFacts($node, $loaded['facts'], $loaded['loaded']);
-        foreach ($counts as $name => $count) {
-          $totals[$name] += $count;
+        $totals['claims'] += $counts['claims'];
+        $totals['opened'] += $counts['opened'];
+        $totals['closed'] += $counts['closed'];
+        if ($counts['deferred_delay'] > 0) {
+          $reason = (string) $counts['deferred_reason'];
+          $deferred[$reason] = ($deferred[$reason] ?? 0) + 1;
         }
       }
       $storage->resetCache($chunk);
     }
-    return $totals + ['failed' => $loaded['failed']];
+    return $totals + ['failed' => $loaded['failed'], 'summaries' => $this->summaries(), 'deferred' => $deferred];
   }
 
   /**
@@ -210,21 +228,26 @@ class Scanner {
    * @param string[] $loadedSourceIds
    *   The IDs of the sources the facts came from.
    *
-   * @return array{claims: int, opened: int, closed: int}
-   *   The counts.
+   * @return array{claims: int, opened: int, closed: int, deferred_delay: int, deferred_reason: string|null}
+   *   The counts, and the largest deferral asked for by a contextual
+   *   extractor in seconds (0 when none) with its reason.
    */
   protected function scanWithFacts(NodeInterface $node, array $facts, array $loadedSourceIds): array {
     $counts = $this->zeros();
+    $delay = 0;
+    $delayReason = NULL;
     if (!$this->isScannable($node) || !$loadedSourceIds) {
-      return $counts;
+      return $counts + ['deferred_delay' => $delay, 'deferred_reason' => $delayReason];
     }
     $settings = $this->settings();
     $fieldTypes = $settings->get('field_types') ?? [];
-    $extractors = $this->extractors($settings->get('extractors') ?? []);
+    $extractors = $this->plainExtractors($settings->get('extractors') ?? []);
+    $contextual = $this->contextualExtractors();
     $default = $node->getUntranslated();
     $mismatches = [];
+    $keep = [];
     foreach ($default->getFieldDefinitions() as $name => $definition) {
-      if (!in_array($definition->getType(), $fieldTypes, TRUE)) {
+      if ($definition->getFieldStorageDefinition()->isBaseField() || !in_array($definition->getType(), $fieldTypes, TRUE)) {
         continue;
       }
       $text = $this->plainText($default->get($name));
@@ -232,8 +255,23 @@ class Scanner {
         continue;
       }
       $claims = [];
-      foreach ($extractors as $extractor) {
-        array_push($claims, ...$extractor->extract($text));
+      foreach ($extractors as $id => $extractor) {
+        foreach ($extractor->extract($text) as $claim) {
+          $claims[] = $claim->withExtractor($id);
+        }
+      }
+      foreach ($contextual as $id => $extractor) {
+        $context = new ExtractionContext($node, (string) $name, $claims);
+        foreach ($extractor->extractInContext($text, $context) as $claim) {
+          $claims[] = $claim->withExtractor($id);
+        }
+        if ($context->isDeferred() || $context->isHeld()) {
+          $keep[] = [(string) $name, $id];
+        }
+        if ($context->delay() > $delay) {
+          $delay = $context->delay();
+          $delayReason = $context->reason();
+        }
       }
       $counts['claims'] += count($claims);
       foreach ($this->comparator->attribute($claims, $facts, $text) as [$fact, $claim]) {
@@ -242,10 +280,10 @@ class Scanner {
         }
       }
     }
-    $synced = $this->recorder->sync($node, $mismatches, $loadedSourceIds);
+    $synced = $this->recorder->sync($node, $mismatches, $loadedSourceIds, $keep);
     $counts['opened'] = $synced['opened'];
     $counts['closed'] = $synced['closed'];
-    return $counts;
+    return $counts + ['deferred_delay' => $delay, 'deferred_reason' => $delayReason];
   }
 
   /**
@@ -283,24 +321,60 @@ class Scanner {
   }
 
   /**
-   * Creates the configured extractors.
+   * Creates the plain extractors the settings enable.
+   *
+   * A plain extractor has a claim type and is not contextual.
    *
    * @param string[] $ids
    *   The extractor plugin IDs from the settings.
    *
-   * @return \Drupal\fact_drift\ClaimExtractor\ClaimExtractorInterface[]
-   *   The extractors, in weight order.
+   * @return array<string, \Drupal\fact_drift\ClaimExtractor\ClaimExtractorInterface>
+   *   The extractors keyed by plugin ID, in weight order.
    */
-  protected function extractors(array $ids): array {
+  protected function plainExtractors(array $ids): array {
     $extractors = [];
-    foreach (array_keys($this->extractorManager->getDefinitions()) as $id) {
-      if (in_array($id, $ids, TRUE)) {
-        $extractor = $this->extractorManager->createInstance($id);
-        assert($extractor instanceof ClaimExtractorInterface);
-        $extractors[] = $extractor;
+    foreach ($this->extractorManager->getDefinitions() as $id => $definition) {
+      if (!in_array($id, $ids, TRUE) || ($definition['claim_type'] ?? NULL) === NULL) {
+        continue;
+      }
+      $extractor = $this->extractorManager->createInstance($id);
+      assert($extractor instanceof ClaimExtractorInterface);
+      if (!$extractor instanceof ContextualClaimExtractorInterface) {
+        $extractors[$id] = $extractor;
       }
     }
     return $extractors;
+  }
+
+  /**
+   * Creates the active contextual extractors, whatever the settings say.
+   *
+   * @return array<string, \Drupal\fact_drift\ClaimExtractor\ContextualClaimExtractorInterface>
+   *   The extractors keyed by plugin ID, in weight order.
+   */
+  protected function contextualExtractors(): array {
+    $extractors = [];
+    foreach (array_keys($this->extractorManager->getDefinitions()) as $id) {
+      $extractor = $this->extractorManager->createInstance($id);
+      if ($extractor instanceof ContextualClaimExtractorInterface && $extractor->isActive()) {
+        $extractors[$id] = $extractor;
+      }
+    }
+    return $extractors;
+  }
+
+  /**
+   * Reads the run summary of every active contextual extractor.
+   *
+   * @return array<string, array<string, int>>
+   *   The summaries keyed by extractor plugin ID.
+   */
+  protected function summaries(): array {
+    $summaries = [];
+    foreach ($this->contextualExtractors() as $id => $extractor) {
+      $summaries[$id] = $extractor->runSummary();
+    }
+    return $summaries;
   }
 
   /**

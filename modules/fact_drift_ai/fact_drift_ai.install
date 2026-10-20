@@ -1,0 +1,20 @@
+<?php
+
+/**
+ * @file
+ * Install and requirements functions for the Fact Drift Sentinel AI extractor.
+ */
+
+use Drupal\fact_drift_ai\Hook\FactDriftAiHooks;
+
+/**
+ * Implements hook_requirements().
+ *
+ * @phpstan-return array<string, array<string, mixed>>
+ */
+function fact_drift_ai_requirements(string $phase): array {
+  if ($phase !== 'runtime') {
+    return [];
+  }
+  return \Drupal::service(FactDriftAiHooks::class)->requirements($phase);
+}

@@ -123,6 +123,24 @@ class DismissTest extends BrowserTestBase {
   }
 
   /**
+   * Tests that dismissing under filters returns to the report with them.
+   */
+  public function testDismissKeepsStateTypeAndExtractorFilters(): void {
+    $this->drupalLogin($this->drupalCreateUser(['view fact drift findings', 'manage fact drift findings']));
+    $this->drupalGet('/admin/reports/fact-drift', [
+      'query' => ['state' => 'open', 'type' => 'phone', 'extractor' => 'phone'],
+    ]);
+    $link = $this->assertSession()->elementExists('css', '.fact-drift-report__ops a');
+    $this->assertStringContainsString('extractor=phone', (string) $link->getAttribute('href'));
+    $link->click();
+    $this->assertSession()->pageTextContains('Finding dismissed.');
+    $url = parse_url($this->getUrl());
+    parse_str($url['query'] ?? '', $query);
+    $this->assertSame('/admin/reports/fact-drift', $url['path']);
+    $this->assertSame(['state' => 'open', 'type' => 'phone', 'extractor' => 'phone'], $query);
+  }
+
+  /**
    * Tests that the link from the report dismisses and records the reason.
    */
   public function testReportLinkDismisses(): void {
