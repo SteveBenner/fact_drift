@@ -278,10 +278,11 @@ architecture:
         rest: { milestone: stretch, settings: [url, timeout_seconds], guardrails: same as the LLM call rules below }
     ClaimExtractor:
       attribute: >
-        Drupal\fact_drift\Attribute\ClaimExtractor (id, label, claim_type, weight, claim_types). claim_type is the
+        Drupal\fact_drift\Attribute\ClaimExtractor (id, label, claim_type, weight, claim_types, marker). claim_type is the
         one type a plain extractor finds and labels; it is NULL for an extractor that finds only types other
         extractors declare, which lists them in claim_types. Claim-type labels (report, filters) come only from
-        extractors with a claim_type.
+        extractors with a claim_type. marker is the short text a contextual extractor shows beside its findings
+        ("AI" for llm); plain extractors have none.
       discovery: Plugin/ClaimExtractor in every enabled module, attribute discovery, alter hook fact_drift_extractor_info
       interface: extract(string $text) returns Claim[] with offsets and snippets
       contextual_interface: >
@@ -352,8 +353,8 @@ architecture:
     provenance: >
       A finding produced by a contextual extractor shows that extractor's short marker ("AI" for llm) beside its
       claim type, as text rather than colour alone, with an accessible name naming the extractor. The extractor
-      filter lists every extractor plugin by its label, and appears only when more than one extractor is
-      defined. The visual design comes from Chris's frontend spec for 0.2.0 and is recorded under presentation
+      filter lists every extractor plugin by its label, and appears only when a contextual extractor is
+      defined, since with plain extractors alone it would repeat the claim-type filter. The visual design comes from Chris's frontend spec for 0.2.0 and is recorded under presentation
       after his rendered review.
     rendering: >
       The controller returns a render array using #theme fact_drift_report; the table is a #type table with
