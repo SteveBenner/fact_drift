@@ -3,8 +3,8 @@ app:
   id: fact_drift
   name: Fact Drift Sentinel
   kind: drupal-module
-  version: 0.1.0
-  status: mvp
+  version: 0.2.0
+  status: ai_extractor
   license: GPL-2.0-or-later
   repository: https://github.com/SteveBenner/fact_drift
   visibility: private until the MVP is complete with CI green, then public (decided 2026-10-16)
@@ -264,7 +264,7 @@ architecture:
       llm_moved: >
         The llm subtree of 0.1.0 moved to fact_drift_ai.settings (llm_extractor.configuration) in 0.2.0, because
         the submodule owns its settings. An update hook removes it from existing sites; it was never read.
-    kill_switch_override_notice: the settings form shows that the kill switch is overridden in settings.php when the active value differs from the stored one, and the checkbox then reflects the active value and is disabled
+    kill_switch_override_notice: the settings form shows that the kill switch is overridden in settings.php whenever the config object reports an override for the key (hasOverrides('kill_switch')), even when the overriding value equals the stored one, and the checkbox then reflects the active value and is disabled
     schema_rule: every key has a type in config/schema/fact_drift.schema.yml; kernel tests run with strict schema checking
     secrets_rule: provider API keys live in the Key module or settings.php or the environment, never in exported config
     settings_form: "ConfigFormBase at /admin/config/content/fact-drift, fields wired with #config_target"
