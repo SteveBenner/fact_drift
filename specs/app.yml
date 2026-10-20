@@ -446,6 +446,7 @@ architecture:
         min_interval_ms: { type: integer, default: 1000 }
         timeout_seconds: { type: integer, default: 10 }
         max_retries: { type: integer, default: 2 }
+        reasoning: { type: string, default: none, values: [none, provider_default], meaning: "none sends reasoning_effort none with every call; provider_default sends nothing (decided 2026-10-20)" }
       kill_switch: fact_drift.settings:kill_switch, shared with the base module
       schema_rule: every key typed in config/schema/fact_drift_ai.schema.yml; kernel tests run with strict schema checking
       secrets_rule: no credential is stored by this module; a hosted provider's key lives in the Key module, settings.php or the environment through the ai module
@@ -498,6 +499,12 @@ architecture:
       json_mode: >
         The reply's JSON schema is requested with ChatInput::setChatStructuredJsonSchema, which the Ollama
         provider sends as response_format to Ollama's /v1 endpoint. Validation never relies on it.
+      reasoning: >
+        Extraction is a lookup, and a reasoning pass costs 20-50 times the time: on the owner's CPU, qwen3:4b took
+        220 s and 4,684 tokens for two claims with the provider default and 4 s with reasoning_effort none
+        (measured 2026-10-20). With reasoning none, the call sets the provider configuration key reasoning_effort
+        to none, which the OpenAI-compatible providers send in the request body; models without reasoning ignore
+        it (gemma3:4b did). The eval accepts --reasoning=none|provider_default to compare.
       reply_text: >
         The call sets a per-call HostnameFilterDto with full trust, so the ai module returns the reply unaltered
         (its default filter re-serialises text as HTML, which would corrupt JSON and quotes). The reply is
@@ -558,7 +565,7 @@ architecture:
         through runSummary().
       never_logged: page text, quotes and model replies
     eval:
-      command: drush fact-drift:ai-eval [--model=ID] [--max-calls=N] [--format=table|json]
+      command: drush fact-drift:ai-eval [--model=ID] [--reasoning=none|provider_default] [--max-calls=N] [--format=table|json]
       fixture: tests/fixtures/eval.yml, sentences about the invented clinics in tests/fixtures/clinics.csv, each with its expected claims (type and normalised value), covering prose hours, spelled-out and split numbers, extensions, distractors with no claim, and text that tries to give the model instructions
       does: >
         Runs every case through the same prompt, validation and call guard as a scan, against the configured
