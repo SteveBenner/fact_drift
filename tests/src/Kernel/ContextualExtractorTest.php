@@ -54,17 +54,21 @@ class ContextualExtractorTest extends KernelTestBase {
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['node', 'filter', 'fact_drift']);
     NodeType::create(['type' => 'page', 'name' => 'Page'])->save();
-    FieldStorageConfig::create([
-      'field_name' => 'body',
-      'entity_type' => 'node',
-      'type' => 'text_with_summary',
-    ])->save();
-    FieldConfig::create([
-      'field_name' => 'body',
-      'entity_type' => 'node',
-      'bundle' => 'page',
-      'label' => 'Body',
-    ])->save();
+    if (!FieldStorageConfig::loadByName('node', 'body')) {
+      FieldStorageConfig::create([
+        'field_name' => 'body',
+        'entity_type' => 'node',
+        'type' => 'text_with_summary',
+      ])->save();
+    }
+    if (!FieldConfig::loadByName('node', 'page', 'body')) {
+      FieldConfig::create([
+        'field_name' => 'body',
+        'entity_type' => 'node',
+        'bundle' => 'page',
+        'label' => 'Body',
+      ])->save();
+    }
     Source::create([
       'id' => 'clinics',
       'label' => 'Clinics',
