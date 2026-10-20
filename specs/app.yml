@@ -484,10 +484,12 @@ architecture:
         The field text is split into paragraphs (blank lines and block boundaries). A paragraph is kept when it
         contains a digit, a day or time word (Monday-Sunday and their abbreviations, weekday, weekend, daily,
         noon, midnight, morning, evening, am, pm, o'clock), or a cue word (phone, call, tel, fax, hours, open,
-        closed). Kept paragraphs are packed in order into windows of at most max_chars; a longer paragraph is
-        cut at sentence ends, then at max_chars.
+        closed). Each window is one contiguous slice of the field text: consecutive kept paragraphs are packed
+        into it up to max_chars, and a dropped paragraph ends it, so a window never joins text that is not
+        adjacent on the page. A paragraph longer than max_chars is cut at sentence ends, then at max_chars, and
+        every piece keeps the paragraph's kept or dropped status.
       prefilter_off: the whole field is packed into windows of at most max_chars, cut at paragraph, then sentence, then max_chars
-      offsets: every window remembers where it starts in the field text, so claim offsets are field offsets
+      offsets: every window remembers where it starts in the field text, so claim offsets are field offsets, in characters like the plain extractors'
       one_window_one_call: each window is one call against max_calls_per_run
     prompt:
       version: a PROMPT_VERSION constant, raised whenever the prompt text changes; it is part of the cache key
