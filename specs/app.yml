@@ -38,6 +38,15 @@ compatibility:
     feed blocks every 10.5.x release (shown by CI on 2026-10-19), so the floor is 10.6, and CI tests exactly that.
   php: ">=8.1 on Drupal 10.6, >=8.3 on Drupal 11"
   module_dependencies: [drupal:node, drupal:options]
+  submodules:
+    fact_drift_ai:
+      dependencies: [fact_drift:fact_drift, ai:ai]
+      ai_module: >
+        drupal/ai, the newest 1.x release that installs on both CI rows. If no release installs on Drupal 10.6
+        with PHP 8.1, the owner decides before the build continues. The base module never requires it.
+      reason: >
+        The AI extractor is an optional integration (decided 2026-10-19), so it lives in its own submodule and
+        enabling it is the first visible opt-in. A site that checks only phone numbers installs no AI packages.
   entity_type_definitions: >
     PHP attributes for entity types (#[ContentEntityType], #[ConfigEntityType]) exist only from Drupal 11.1,
     so both entity types are defined with docblock annotations (@ContentEntityType, @ConfigEntityType),
@@ -55,12 +64,16 @@ glossary:
   source: a configured place the facts come from, read by a FactSource plugin
   extractor: a plugin that finds claims of one type in text
   scan: extracting claims from one node and comparing them with the facts
+  contextual extractor: an extractor that also needs the node, the field and the claims earlier extractors found, and may defer its work on a field
+  deferred: an extractor's work on a field that did not finish in this scan (budget spent, provider rate-limited or down) and is retried later
+  held: an extractor's work on a field that is blocked in this scan (the kill switch, an unconfigured provider) and is not retried; its findings stay open
 
 behaviour:
   pipeline:
     - load facts from every enabled source, keeping only facts whose claim type is in the source's claim_types; cache them under the cache tag fact_drift_facts, keyed also by what identifies the source's current content (for csv, the file's modification time and size), so a changed file is reloaded by every scan path
     - for each published node of a configured content type, read every configured text field in the default language
     - run every enabled extractor over the field's text with markup stripped, producing claims; every tag is replaced by a space before stripping, so text in adjacent elements never merges
+    - plain extractors run first; contextual extractors run after them, in weight order, and receive the node, the field name and the claims already found in that field
     - attribute each claim to a fact (matching rules below)
     - compare the normalised claim value with the normalised fact value
     - open a finding for each mismatch; close the node's open findings that no longer mismatch
@@ -85,7 +98,12 @@ behaviour:
     skipped for that scan: its facts are absent and none of its open findings are closed by that scan.
   finding_lifecycle:
     open: created when a mismatch is first seen; the same node, field, source, fact key, claim type and found value never opens twice
-    closed: set by a later scan in which that mismatch is gone, or when the node is deleted
+    closed: >
+      Set by a later scan in which that mismatch is gone, or when the node is deleted. An extractor that is not
+      configured to run (removed from the extractors setting, its module uninstalled, or the AI extractor not
+      enabled) closes its findings like any vanished mismatch, as in 0.1.0. An extractor that is configured but
+      blocked in this scan (the kill switch, no provider or model, a held or deferred field) leaves its findings
+      on that field open, as a failed source does, because nothing disproved them (decided 2026-10-19).
     dismissed: set by a person with the manage permission, with a reason; a dismissed finding is not reopened for the same found value
     dismiss_reason_from_report: >
       The report's dismiss link is a GET with a CSRF token and carries no form, so it records the reason
@@ -125,7 +143,9 @@ architecture:
     src/Plugin/FactSource/RestSource.php: reads facts from a JSON endpoint (stretch)
     src/Plugin/ClaimExtractor/PhoneExtractor.php: finds phone numbers
     src/Plugin/ClaimExtractor/HoursExtractor.php: finds opening hours
-    src/Plugin/ClaimExtractor/LlmExtractor.php: finds fuzzy claims through the ai module (stretch)
+    src/ClaimExtractor/ContextualClaimExtractorInterface.php: what a contextual extractor adds
+    src/Value/ExtractionContext.php: the node, field name and earlier claims handed to a contextual extractor, and where it records deferred work
+    fact_drift.install: update hooks (the finding's extractor field; removal of the old llm settings)
     src/Value/Fact.php: immutable fact value object
     src/Value/Claim.php: immutable claim value object
     src/Value/Mismatch.php: immutable pairing of a field name, a fact and the claim that contradicts it, handed from the scanner to the recorder
@@ -149,6 +169,7 @@ architecture:
     phpcs.xml.dist: the coding-standard ruleset CI and DDEV run
     phpstan.neon: the static-analysis configuration CI and DDEV run
     .ddev/: local development
+    modules/fact_drift_ai/: the AI extractor submodule (llm_extractor.file_layout)
   services:
     fact_drift.source_manager:
       class: Drupal\fact_drift\FactSource\FactSourceManager
@@ -193,6 +214,7 @@ architecture:
         node: entity_reference to node, required
         field_name: string, the field the claim was found in
         claim_type: string, phone or hours (or a stretch type)
+        extractor: string, the ID of the extractor plugin whose claim opened the finding (phone, hours or llm); existing findings take their claim type as the value in the update hook, since the MVP's extractor IDs equal their claim types. It is not part of the de-duplication key, so a claim found later by another extractor never opens a second finding
         fact_key: string, the fact's key within its source
         source: entity_reference to fact_drift_source
         expected: string, the normalised fact value
@@ -233,18 +255,14 @@ architecture:
     fact_drift.settings:
       content_types: { type: sequence of bundle ids, default: [page, article] }
       field_types: { type: sequence, default: [text_with_summary, text_long, string_long] }
-      extractors: { type: sequence of extractor plugin ids, default: [phone, hours] }
+      extractors: { type: sequence of plain extractor plugin ids, default: [phone, hours], meaning: "the plain extractors to run; the form lists only extractors with a claim_type. A contextual extractor runs when its own settings enable it (decided 2026-10-19)" }
       full_scan_interval: { type: integer seconds, default: 86400 }
       nodes_per_cron: { type: integer, default: 200 }
-      llm:
-        enabled: { type: boolean, default: false }
-        provider: { type: string, default: "" }
-        model: { type: string, default: "" }
-        max_calls_per_run: { type: integer, default: 20 }
-        min_interval_ms: { type: integer, default: 1000 }
-        timeout_seconds: { type: integer, default: 10 }
-        max_retries: { type: integer, default: 2 }
       kill_switch: { type: boolean, default: false, meaning: "forces deterministic extraction only; overridable per environment in settings.php" }
+      llm_moved: >
+        The llm subtree of 0.1.0 moved to fact_drift_ai.settings (llm_extractor.configuration) in 0.2.0, because
+        the submodule owns its settings. An update hook removes it from existing sites; it was never read.
+    kill_switch_override_notice: the settings form shows that the kill switch is overridden in settings.php when the active value differs from the stored one, and the checkbox then reflects the active value and is disabled
     schema_rule: every key has a type in config/schema/fact_drift.schema.yml; kernel tests run with strict schema checking
     secrets_rule: provider API keys live in the Key module or settings.php or the environment, never in exported config
     settings_form: "ConfigFormBase at /admin/config/content/fact-drift, fields wired with #config_target"
@@ -257,13 +275,26 @@ architecture:
         csv: { milestone: mvp, columns: [key, name, aliases, phone, former_phones, hours], aliases_and_former_split_on: "|" }
         rest: { milestone: stretch, settings: [url, timeout_seconds], guardrails: same as the LLM call rules below }
     ClaimExtractor:
-      attribute: Drupal\fact_drift\Attribute\ClaimExtractor (id, label, claim_type, weight)
-      discovery: src/Plugin/ClaimExtractor, attribute discovery, alter hook fact_drift_extractor_info
+      attribute: >
+        Drupal\fact_drift\Attribute\ClaimExtractor (id, label, claim_type, weight, claim_types). claim_type is the
+        one type a plain extractor finds and labels; it is NULL for an extractor that finds only types other
+        extractors declare, which lists them in claim_types. Claim-type labels (report, filters) come only from
+        extractors with a claim_type.
+      discovery: Plugin/ClaimExtractor in every enabled module, attribute discovery, alter hook fact_drift_extractor_info
       interface: extract(string $text) returns Claim[] with offsets and snippets
+      contextual_interface: >
+        ContextualClaimExtractorInterface extends it with extractInContext(string $text, ExtractionContext $context)
+        returning Claim[], and runSummary() returning counters (name => integer) for the current PHP process, which
+        the Scanner adds to its result and Drush prints. ExtractionContext carries the node, the field name and the
+        claims earlier extractors found in the field; defer(int $delaySeconds, string $reason), which marks
+        the field deferred for this extractor; and hold(string $reason), which marks it held. isActive() tells the
+        Scanner whether the extractor is configured to run at all; an inactive one is skipped and closes its
+        findings (behaviour.finding_lifecycle.closed).
+      claim_provenance: every Claim carries the ID of the extractor that produced it, which becomes the finding's extractor
       implementations:
         phone: { milestone: mvp }
         hours: { milestone: mvp }
-        llm: { milestone: stretch, through: ai module provider abstraction }
+        llm: { milestone: ai_extractor, module: fact_drift_ai, through: ai module provider abstraction, contextual: true, claim_types: [phone, hours] }
   hooks_and_events:
     node_insert_and_update: when a published node of a configured type is saved, queue one rescan item for it; the editor's request does no scanning
     node_delete: close every open finding for the node, and log "node deleted" with the node id and the count closed to the fact_drift channel (a finding has no close-reason field)
@@ -280,8 +311,11 @@ architecture:
     worker: 'RescanWorker, #[QueueWorker(id: "fact_drift_rescan", title: new TranslatableMarkup("Fact drift rescan"), cron: ["time" => 30])]'
     item: { nid: int }
     errors:
-      provider_rate_limited: throw DelayedRequeueException with the provider's retry delay, so this item waits and the rest continue
-      provider_down: throw SuspendQueueException, so this cron run stops processing the queue
+      deferred: >
+        When any extractor deferred a field of the node, the worker records the scan's findings first and then
+        throws DelayedRequeueException with the largest delay asked for, so the item's deferred work is retried
+        and the rest of the queue continues. This replaces 0.1.0's rule that a provider outage throws
+        SuspendQueueException (decided 2026-10-19): an outage of the model must never pause the regex checks.
       node_gone: return quietly; the delete hook already closed its findings
   routes:
     fact_drift.report:
@@ -298,6 +332,12 @@ architecture:
       form: SettingsForm
       permission: administer fact drift
     sources: generated from the source entity's links by AdminHtmlRouteProvider
+    fact_drift_ai.settings:
+      module: fact_drift_ai
+      path: /admin/config/content/fact-drift/ai
+      form: AiSettingsForm
+      permission: administer fact drift
+      tabs: the submodule's links.task.yml adds "Settings" (the default tab, fact_drift.settings) and "AI extractor"
   permissions:
     view fact drift findings: { title: View fact drift findings }
     manage fact drift findings: { title: Dismiss findings and draft corrections }
@@ -306,7 +346,13 @@ architecture:
     content: >
       A summary (open findings by claim type and by source), then a table of findings: page (link),
       field, claim type, expected, found, snippet, first seen, and a dismiss link for managers. Filter by
-      ?state=open|closed|dismissed (default open) and ?type=. Paged at 50.
+      ?state=open|closed|dismissed (default open), ?type= and ?extractor=. Paged at 50.
+    provenance: >
+      A finding produced by a contextual extractor shows that extractor's short marker ("AI" for llm) beside its
+      claim type, as text rather than colour alone, with an accessible name naming the extractor. The extractor
+      filter lists every extractor plugin by its label, and appears only when more than one extractor is
+      defined. The visual design comes from Chris's frontend spec for 0.2.0 and is recorded under presentation
+      after his rendered review.
     rendering: >
       The controller returns a render array using #theme fact_drift_report; the table is a #type table with
       a #type pager. Snippets are rendered with #plain_text, never #markup.
@@ -350,27 +396,145 @@ architecture:
         claim matches its source." appears only when no type is set and the state has no findings at all.
     cache:
       tags: [fact_drift_finding_list, the node:<nid> tag of every linked node, config:fact_drift.settings]
-      contexts: [user.permissions, timezone, url.query_args:state, url.query_args:type, url.query_args.pagers:0]
+      contexts: [user.permissions, timezone, url.query_args:state, url.query_args:type, url.query_args:extractor, url.query_args.pagers:0]
       max_age: permanent
   drush:
-    fact-drift:scan: { options: [--source=ID, --node=NID, --limit=N], does: "scans synchronously and prints counts of claims, opened findings and closed findings" }
-    fact-drift:report: { options: [--state=open, --format=table|json|csv], does: lists findings through Drush output formatters (RowsOfFields) }
+    fact-drift:scan: { options: [--source=ID, --node=NID, --limit=N], does: "scans synchronously and prints counts of claims, opened findings and closed findings, then each contextual extractor's run summary; deferred nodes are counted, not queued" }
+    fact-drift:report: { options: [--state=open, --format=table|json|csv], does: "lists findings through Drush output formatters (RowsOfFields), including the extractor column" }
     fact-drift:sources: { does: "lists sources with their plugin, fact count and last load" }
     definition: 'PHP attributes (#[CLI\Command], #[CLI\Option]) on src/Drush/Commands/FactDriftCommands.php with a create() factory'
   llm_extractor:
-    milestone: stretch
-    provider: the ai module (drupal/ai) provider abstraction; any configured provider, including a local one
-    output: JSON validated against a fixed schema before use; invalid output produces no claim
+    milestone: ai_extractor
+    designed: 2026-10-19, in an interview with the owner
+    module: fact_drift_ai, in modules/fact_drift_ai (compatibility.submodules)
+    provider: >
+      The ai module (drupal/ai) provider abstraction: any configured chat provider and model. The demonstrated
+      provider is a local Ollama model (decisions.ai_provider), so nothing leaves the host.
+    file_layout:
+      fact_drift_ai.info.yml: the submodule's identity and dependencies
+      fact_drift_ai.services.yml: the call guard, the prompt, the cache bin and the logger channel
+      fact_drift_ai.routing.yml: the AI settings route
+      fact_drift_ai.links.task.yml: the Settings and AI extractor tabs
+      config/install/fact_drift_ai.settings.yml: default settings
+      config/schema/fact_drift_ai.schema.yml: types for the settings
+      src/Plugin/ClaimExtractor/LlmExtractor.php: the contextual llm extractor
+      src/CallGuard.php: the kill switch, limiter, timeout, retries, rate limits and circuit breaker around every call, and the run counters
+      src/ResponseValidator.php: parses and validates the model's JSON and grounds each claim in the text
+      src/Prefilter.php: picks the cue passages and builds the windows
+      src/Form/AiSettingsForm.php: the AI extractor tab
+      src/Drush/Commands/AiEvalCommands.php: drush fact-drift:ai-eval
+      tests/fixtures/eval.yml: labelled sentences about the invented clinics, with their expected claims
+      tests/modules/fact_drift_ai_test: the fake chat provider
+      tests/src/Unit, tests/src/Kernel, tests/src/Functional: the submodule's tests
+    configuration:
+      fact_drift_ai.settings:
+        enabled: { type: boolean, default: false }
+        provider: { type: string, default: "", meaning: an ai module provider plugin ID }
+        model: { type: string, default: "", meaning: a model ID of that provider }
+        mode: { type: string, default: fallback, values: [fallback, alongside] }
+        prefilter: { type: boolean, default: true }
+        max_chars: { type: integer, default: 4000, meaning: "the most characters in one window, which is one call" }
+        allowlist: { type: "sequence of mappings (bundle, field)", default: [], meaning: the only fields ever sent }
+        max_calls_per_run: { type: integer, default: 20 }
+        min_interval_ms: { type: integer, default: 1000 }
+        timeout_seconds: { type: integer, default: 10 }
+        max_retries: { type: integer, default: 2 }
+      kill_switch: fact_drift.settings:kill_switch, shared with the base module
+      schema_rule: every key typed in config/schema/fact_drift_ai.schema.yml; kernel tests run with strict schema checking
+      secrets_rule: no credential is stored by this module; a hosted provider's key lives in the Key module, settings.php or the environment through the ai module
+    settings_form: >
+      AiSettingsForm at /admin/config/content/fact-drift/ai, a ConfigFormBase wired with #config_target. Fields:
+      enabled, the one switch that turns the extractor on; provider and model, chosen from the ai module's configured chat providers and their models (with a
+      message and a link to the ai module's settings when none is configured); mode; prefilter and max_chars; the
+      allowlist as the configured content types' scannable fields; the four limits. It shows the kill switch's
+      active state, read-only, linking to the main settings form. Its layout comes from Chris's frontend spec.
+    when_it_runs:
+      - it is active when fact_drift_ai is installed and enabled is true; it is not listed in fact_drift.settings:extractors, so the AI tab's enabled is its one switch
+      - while active, the kill switch on or no provider or model holds every field (no call, findings kept); while inactive its findings close (behaviour.finding_lifecycle.closed)
+      - it runs after the plain extractors (behaviour.pipeline)
+    modes:
+      fallback: the model is asked only for the claim types (of phone and hours) the plain extractors found none of in the field; when none is missing, no call is made
+      alongside: the model is asked for both types on every allowed field, and any claim of its whose span overlaps a plain extractor's claim is dropped, so the plain claim wins
+    data_governance:
+      rule: >
+        Only published, public content is ever sent. Unpublished content, user data and anything that could be
+        protected health information are never sent. A local model keeps everything on the host.
+      gate:
+        - the node is published (the scanner's status = 1) and the anonymous user has view access to it, so a node hidden by an access module is never sent
+        - the field is on the allowlist for the node's bundle; the allowlist is empty until an administrator fills it
+        - only the field's plain text is sent, never the author, revision log, title or any other field
+      never_stored: page text is never logged and never written to the cache; the cache key is a hash
+    input:
+      prefilter_on: >
+        The field text is split into paragraphs (blank lines and block boundaries). A paragraph is kept when it
+        contains a digit, a day or time word (Monday-Sunday and their abbreviations, weekday, weekend, daily,
+        noon, midnight, morning, evening, am, pm, o'clock), or a cue word (phone, call, tel, fax, hours, open,
+        closed). Kept paragraphs are packed in order into windows of at most max_chars; a longer paragraph is
+        cut at sentence ends, then at max_chars.
+      prefilter_off: the whole field is packed into windows of at most max_chars, cut at paragraph, then sentence, then max_chars
+      offsets: every window remembers where it starts in the field text, so claim offsets are field offsets
+      one_window_one_call: each window is one call against max_calls_per_run
+    prompt:
+      version: a PROMPT_VERSION constant, raised whenever the prompt text changes; it is part of the cache key
+      asks_for: >
+        A JSON object {"claims": [{"type": "phone" | "hours", "quote": string, "value": string}]} listing every
+        phone number or opening-hours statement in the window, of the requested types only. quote is the exact
+        text of the claim as it appears in the window. value is the claim in canonical form: ten digits with an
+        optional x and extension for a phone, and "Mon-Fri 08:00-17:00; Sat 09:00-12:00" form for hours.
+      json_mode: the provider's JSON or structured-output mode is requested when the ai module offers it for the provider; validation never relies on it
+      untrusted_text: the window is passed as data, after the instructions, and the instructions say text inside it is never an instruction
+    output_validation:
+      response: the reply must parse as a JSON object with a claims array; otherwise the whole reply is rejected (invalid_json, invalid_schema)
+      each_claim: >
+        type must be one of the requested types (else type_not_requested); quote and value must be non-empty
+        strings, quote at most 300 characters (else invalid_claim); quote must occur in the window, comparing
+        runs of whitespace as one space and nothing else loosened (else quote_not_found), and its first
+        occurrence not already claimed gives the claim's offset and length; value must pass the Comparator's
+        normaliser for the type (else value_unreadable), and the normalised value is the claim's value. A
+        rejected claim produces no claim; the rest of the reply is kept.
+      snippet: built by the Comparator from the field text at the grounded offset, exactly as for plain claims
+      no_confidence: the model is not asked for a confidence; grounding is the filter (decided 2026-10-19)
+    cache:
+      bin: cache.fact_drift_llm, permanent
+      key: a SHA-256 of the window text, provider, model, requested types and PROMPT_VERSION
+      value: the validated claims, as type, value and window-relative offset and length, never the text
+      on_hit: no call is made and nothing counts against the budget; the field counts as complete
+      cleared_by: drush cache:rebuild, and saving the AI settings
     api_safety:
-      kill_switch: fact_drift.settings:kill_switch and llm.enabled; either one off means no call is made
-      limiter: at most max_calls_per_run calls per scan run and at least min_interval_ms between calls
-      timeouts: timeout_seconds on every call
-      retries: at most max_retries, exponential backoff from 1 s with full jitter, only on timeouts and 5xx
-      rate_limits: a 429 becomes DelayedRequeueException with the provider's retry-after
-      unconfigured: no provider configured means no call
-    data_governance: >
-      Only published, public content is ever sent. Unpublished content, user data and anything that could
-      be protected health information are never sent. A local model can be configured so nothing leaves the host.
+      kill_switch: fact_drift.settings:kill_switch and fact_drift_ai.settings:enabled; either one off means no call is made
+      unconfigured: no provider or model means no call
+      limiter: >
+        At most max_calls_per_run calls per PHP process (one Drush command or one cron run), counting every
+        attempt including retries, and at least min_interval_ms between the start of one call and the next.
+      timeouts: timeout_seconds on every call; the blueprint names the ai module mechanism that carries it, after reading the installed module's source
+      retries: at most max_retries, only after a timeout or a 5xx reply, with exponential backoff from 1 s with full jitter (a uniform delay between 0 and 1 s, 2 s, 4 s, ...), never longer than 30 s
+      rate_limits: a 429 makes no retry; the field is deferred with the provider's retry-after (60 s when absent) and no further call is made in this process
+      outage: >
+        A connection failure, or a timeout or 5xx that survives its retries, opens the circuit breaker: no further
+        call is made in this process, and the field and every later allowed field are deferred by 900 s.
+      budget_spent: a field that would need a call after the budget is spent is deferred by 3600 s
+      other_errors: any other provider error rejects that window (provider_error) without retry; the field is not deferred
+      deferral: >
+        A deferred field keeps its findings from this extractor open. In the queue the item requeues
+        (architecture.queue.errors.deferred); in Drush the node is counted under the deferral reason.
+    observability:
+      logger_channel: fact_drift_ai
+      run_summary: >
+        One log entry per process that made or skipped a call, at the end of the process: calls, cache hits,
+        retries, deferrals by reason (budget, rate_limited, outage), rejections by reason, and prompt and
+        completion tokens when the provider reports them. Drush fact-drift:scan prints the same counters
+        through runSummary().
+      never_logged: page text, quotes and model replies
+    eval:
+      command: drush fact-drift:ai-eval [--model=ID] [--max-calls=N] [--format=table|json]
+      fixture: tests/fixtures/eval.yml, sentences about the invented clinics in tests/fixtures/clinics.csv, each with its expected claims (type and normalised value), covering prose hours, spelled-out and split numbers, extensions, distractors with no claim, and text that tries to give the model instructions
+      does: >
+        Runs every case through the same prompt, validation and call guard as a scan, against the configured
+        provider and the configured or given model, bypassing the cache and the allowlist (the fixture is not
+        site content). It prints, per case, the expected and returned claims, and overall precision, recall,
+        mean latency and rejections by reason, on (type, value) pairs.
+      safety: it refuses to run when the kill switch is on or no provider is configured; --max-calls replaces max_calls_per_run for the eval only and defaults to the number of cases, at most 200; min_interval_ms, timeouts and retries apply
+      default_model: the README's documented default model is the one the eval picks (decided 2026-10-19), with its numbers
 
 security:
   - every route has a permission or an entity access requirement
@@ -379,16 +543,30 @@ security:
   - background entity queries call accessCheck(FALSE) explicitly and filter status = 1, so only published content is scanned
   - no raw SQL; if one becomes necessary it uses placeholders
   - provider credentials never enter exported config
+  - only fields of anonymously viewable nodes on the AI allowlist are sent to a model, and page text is never logged or cached (llm_extractor.data_governance)
+  - a model's output is data, never markup or instructions; it becomes a claim only through the grounding checks and is rendered as plain text
 
 performance:
   - editors' saves only enqueue work; scanning happens in the queue
   - facts load once per run and are cached under fact_drift_facts until a source changes
   - the report is cached by tags and contexts with no time-based expiry
+  - model results are cached by a hash of their input, so an unchanged field costs no call on later sweeps
 
 testing:
   unit: [PhoneExtractor, HoursExtractor and its normaliser, Comparator, matching rules]
   kernel: ["FindingRecorder: open, close, de-duplicate and dismiss",Scanner against tests/fixtures/clinics.csv and real nodes, config schema of the default settings]
   functional: [report returns 403 without the permission and 200 with it, dismiss refuses a missing or wrong CSRF token, settings form saves]
+  ai_extractor: >
+    In modules/fact_drift_ai/tests, against a fake chat provider in a test module (fact_drift_ai_test) that
+    returns scripted replies, 429s, 5xx errors, timeouts and connection failures. CI never calls a real model.
+    Unit: response validation and grounding (bad JSON, bad schema, quote not on the page, whitespace-tolerant
+    quote match, unreadable value, unrequested type), the cue prefilter and windowing, offset mapping, backoff
+    bounds and jitter, overlap removal. Kernel: kill switch and enabled each stop every call; no provider means
+    no call; the allowlist and anonymous access gate; budget exhaustion defers; 429 defers with retry-after; an
+    outage opens the breaker and regex findings are still recorded; fallback asks only for missing types;
+    alongside drops overlapping claims; the cache hit makes no call; deferred fields keep their findings open;
+    the extractor field and both update hooks. Functional: the AI settings form saves and needs the permission,
+    the kill-switch override notice, the report's AI marker and extractor filter. Each is shown able to fail.
   rule: every test is shown able to fail by removing the code it covers and watching it go red before it counts
 
 ci:
@@ -397,12 +575,15 @@ ci:
   jobs:
     phpcs: Drupal and DrupalPractice standards (drupal/coder)
     phpstan: level 6 with mglaman/phpstan-drupal and the deprecation rules
-    phpunit: unit, kernel and functional suites
+    phpunit: unit, kernel and functional suites, including fact_drift_ai's, with drupal/ai installed
   gate: main stays green; nothing merges red
 
 local_development:
   tool: DDEV with the ddev/ddev-drupal-contrib add-on, which builds a Drupal site around this module-only repository
   commands: [ddev start, ddev poser, ddev symlink-project, ddev drush site:install, ddev phpunit, ddev phpcs, ddev phpstan]
+  ollama: >
+    Ollama runs on the host, using its GPU, and the DDEV web container reaches it at http://host.docker.internal:11434
+    through the ai module's Ollama provider. Nothing for Ollama is added to .ddev; the README documents the setup.
 
 documentation:
   code_comments: >
@@ -424,7 +605,15 @@ milestones:
     - drush scan, report and sources
     - unit, kernel and functional tests; CI green on both matrix rows
     - repository made public
-  stretch: [rest source, llm extractor, correction drafts through Content Moderation, Views integration for findings, a weekly email digest]
+  ai_extractor:
+    version: 0.2.0
+    items:
+      - the contextual extractor interface, claim provenance, the finding's extractor field and the deferred-work rule in the base module
+      - the fact_drift_ai submodule with the llm extractor, its call guard, cache, settings form and run summary
+      - the report's AI marker and extractor filter, reviewed by Chris in the rendered page
+      - drush fact-drift:ai-eval, and the default model chosen by it
+      - unit, kernel and functional tests against the fake provider; CI green on both matrix rows with drupal/ai
+  stretch: [rest source, correction drafts through Content Moderation, Views integration for findings, a weekly email digest]
 
 demo:
   length: five minutes
@@ -435,6 +624,14 @@ demo:
     - open /admin/reports/fact-drift and show the evidence (page, snippet, expected, found)
     - dismiss one finding and show the CSRF-protected link
     - show the tests and CI, and how one test is proven able to fail
+  ai_demo:
+    length: two minutes, separate from the five-minute demo, which stays regex-only (decided 2026-10-19)
+    steps:
+      - Ollama on the host with the default model; enable fact_drift_ai, pick the Ollama provider and model, and allow the page body
+      - a page that states a clinic's hours and number in prose the regexes cannot read
+      - ddev drush fact-drift:scan shows the AI run summary, and the report shows the finding marked AI
+      - turn on the kill switch, scan again, and show that no call was made
+      - ddev drush fact-drift:ai-eval prints precision and recall for the model
 
 teaching_stages:
   purpose: >
@@ -484,6 +681,11 @@ changes_from_the_2026_09_18_stub:
   - a second plugin type, ClaimExtractor, so new claim types never touch the scanner
   - GitHub Actions instead of GitLab CI, because the repository lives on GitHub; drupal.org's GitLab template applies only if it is ever published there
 
+decisions:
+  ai_provider: >
+    The AI extractor is demonstrated with a local model through Ollama only, so no page text leaves the host
+    (decided 2026-10-19). The code goes through the ai module's provider abstraction, so a hosted provider is a
+    configuration change, but none is documented or demonstrated.
+
 open_decisions:
   - whether and when to publish on drupal.org (outward-facing; the owner decides)
-  - which AI provider the stretch extractor is demonstrated with
