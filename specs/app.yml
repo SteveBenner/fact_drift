@@ -42,8 +42,10 @@ compatibility:
     fact_drift_ai:
       dependencies: [fact_drift:fact_drift, ai:ai]
       ai_module: >
-        drupal/ai, the newest 1.x release that installs on both CI rows. If no release installs on Drupal 10.6
-        with PHP 8.1, the owner decides before the build continues. The base module never requires it.
+        drupal/ai ^1.5 (1.5.1 resolves on Drupal 10.6.19 with PHP 8.1 and on 11.4, checked 2026-10-20; it needs
+        core ^10.5 || ^11.2 and the Key module). drupal/ai_provider_ollama ^1.2@RC is a development dependency for
+        the demo only. composer.json lists both under require-dev and drupal/ai under suggest; the base module
+        never requires either.
       reason: >
         The AI extractor is an optional integration (decided 2026-10-19), so it lives in its own submodule and
         enabling it is the first visible opt-in. A site that checks only phone numbers installs no AI packages.
@@ -422,6 +424,10 @@ architecture:
       src/ResponseValidator.php: parses and validates the model's JSON and grounds each claim in the text
       src/Prefilter.php: picks the cue passages and builds the windows
       src/Form/AiSettingsForm.php: the AI extractor tab
+      src/Hook/FactDriftAiHooks.php: hook_ai_provider_info_alter (the Ollama timeout subclass) and the status report requirement
+      fact_drift_ai.module: the #[LegacyHook] bridges for Drupal before 11.1
+      fact_drift_ai.install: hook_requirements, reporting the side paths (data_governance.side_paths)
+      src/Plugin/AiProvider/TimeoutOllamaProvider.php: the Ollama provider, honouring http_client_options (api_safety.timeouts)
       src/Drush/Commands/AiEvalCommands.php: drush fact-drift:ai-eval
       tests/fixtures/eval.yml: labelled sentences about the invented clinics, with their expected claims
       tests/modules/fact_drift_ai_test: the fake chat provider
@@ -450,7 +456,7 @@ architecture:
       active state, read-only, linking to the main settings form. Its layout comes from Chris's frontend spec.
     when_it_runs:
       - it is active when fact_drift_ai is installed and enabled is true; it is not listed in fact_drift.settings:extractors, so the AI tab's enabled is its one switch
-      - while active, the kill switch on or no provider or model holds every field (no call, findings kept); while inactive its findings close (behaviour.finding_lifecycle.closed)
+      - while active, the kill switch on, no usable provider or model, or an open side path (data_governance.side_paths) holds every field (no call, findings kept); while inactive its findings close (behaviour.finding_lifecycle.closed)
       - it runs after the plain extractors (behaviour.pipeline)
     modes:
       fallback: the model is asked only for the claim types (of phone and hours) the plain extractors found none of in the field; when none is missing, no call is made
@@ -464,6 +470,13 @@ architecture:
         - the field is on the allowlist for the node's bundle; the allowlist is empty until an administrator fills it
         - only the field's plain text is sent, never the author, revision log, title or any other field
       never_stored: page text is never logged and never written to the cache; the cache key is a hash
+      side_paths: >
+        Other ai submodules can store or forward what is sent: ai_logging with prompt_logging on (unless
+        fact_drift_ai is in its prompt_logging_excluded_tags), ai_observability with log_input on, and any
+        external moderation in ai.external_moderation. While one of these is on, every field is held (no call,
+        findings kept), and both the AI tab and the status report name the setting to change (decided
+        2026-10-20). Every call is tagged fact_drift_ai, so excluding that tag is the way to keep prompt logging
+        for other uses.
     input:
       prefilter_on: >
         The field text is split into paragraphs (blank lines and block boundaries). A paragraph is kept when it
@@ -481,7 +494,13 @@ architecture:
         phone number or opening-hours statement in the window, of the requested types only. quote is the exact
         text of the claim as it appears in the window. value is the claim in canonical form: ten digits with an
         optional x and extension for a phone, and "Mon-Fri 08:00-17:00; Sat 09:00-12:00" form for hours.
-      json_mode: the provider's JSON or structured-output mode is requested when the ai module offers it for the provider; validation never relies on it
+      json_mode: >
+        The reply's JSON schema is requested with ChatInput::setChatStructuredJsonSchema, which the Ollama
+        provider sends as response_format to Ollama's /v1 endpoint. Validation never relies on it.
+      reply_text: >
+        The call sets a per-call HostnameFilterDto with full trust, so the ai module returns the reply unaltered
+        (its default filter re-serialises text as HTML, which would corrupt JSON and quotes). The reply is
+        data: it is parsed as JSON and grounded, never rendered.
       untrusted_text: the window is passed as data, after the instructions, and the instructions say text inside it is never an instruction
     output_validation:
       response: the reply must parse as a JSON object with a claims array; otherwise the whole reply is rejected (invalid_json, invalid_schema)
@@ -502,11 +521,23 @@ architecture:
       cleared_by: drush cache:rebuild, and saving the AI settings
     api_safety:
       kill_switch: fact_drift.settings:kill_switch and fact_drift_ai.settings:enabled; either one off means no call is made
-      unconfigured: no provider or model means no call
+      unconfigured: no provider or model, or a provider the ai module reports as not usable, means no call
       limiter: >
         At most max_calls_per_run calls per PHP process (one Drush command or one cron run), counting every
         attempt including retries, and at least min_interval_ms between the start of one call and the next.
-      timeouts: timeout_seconds on every call; the blueprint names the ai module mechanism that carries it, after reading the installed module's source
+      timeouts: >
+        timeout_seconds on every call, as the request and connect timeout, passed to the provider plugin through
+        createInstance($id, ['http_client_options' => ['timeout' => ..., 'connect_timeout' => ...]]), which the ai
+        module's base provider honours. ai_provider_ollama 1.2.0-rc3 ignores it and hard-codes a 600 s client
+        (OllamaProvider::loadClient), so fact_drift_ai's hook_ai_provider_info_alter replaces the ollama plugin
+        class with TimeoutOllamaProvider, whose loadClient honours http_client_options and otherwise keeps 600 s,
+        so the site's other Ollama uses are unchanged (decided 2026-10-20). A kernel test pins the override.
+      error_classes: >
+        From the ai module and the OpenAI-compatible transport it uses. A 429 is AiRateLimitException or any
+        exception carrying a response with status 429, and its Retry-After header gives the delay. A 5xx is an
+        exception carrying a response with status 500-599. A timeout is a transport exception whose cause is a
+        Guzzle ConnectException or RequestException reporting a timeout (cURL error 28). A connection failure is
+        any other transport exception (refused, unreachable, DNS). Anything else is another provider error.
       retries: at most max_retries, only after a timeout or a 5xx reply, with exponential backoff from 1 s with full jitter (a uniform delay between 0 and 1 s, 2 s, 4 s, ...), never longer than 30 s
       rate_limits: a 429 makes no retry; the field is deferred with the provider's retry-after (60 s when absent) and no further call is made in this process
       outage: >
